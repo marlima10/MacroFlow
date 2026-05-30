@@ -49,6 +49,7 @@ Responsabilidades:
 - salvar, carregar, excluir e limpar macros
 - atualizar a tabela e a timeline visual
 - controlar tema claro/escuro
+- mostrar contagem regressiva antes da gravacao
 - exibir alerta verde piscando durante reproducao
 - mostrar atalhos em cards e abrir a tela de edicao de atalhos
 
@@ -68,6 +69,7 @@ Responsabilidades:
 
 - capturar teclado e mouse usando `pynput`
 - iniciar e parar gravacao
+- aguardar contagem regressiva antes de gravar
 - guardar eventos com tempo relativo
 - enviar eventos em tempo real para a interface
 - reproduzir a macro capturada

@@ -18,6 +18,7 @@ python macro_recorder.py
 ## Como usar
 
 - Clique em `Gravar` ou pressione `F8` para iniciar.
+- A gravacao comeca depois da contagem `3, 2, 1`.
 - Faca os cliques e teclas da macro.
 - Veja no painel `Ao vivo` quais teclas ou botoes do mouse estao pressionados em tempo real.
 - Clique em `Parar` ou pressione `F8` de novo para parar.
@@ -33,7 +34,7 @@ python macro_recorder.py
 - Dê duplo clique em uma celula da tabela para editar tempo, tipo ou dados JSON ali mesmo.
 - Voce tambem pode selecionar um evento e editar pelos campos de baixo.
 - Use o switch `Modo escuro` para alternar entre tema escuro e claro.
-- Pressione `Esc` para fechar.
+- Pressione `Esc` para fechar quando a janela do MacroFlow estiver em foco.
 
 Ao reproduzir, o programa espera 3 segundos para voce colocar a janela certa em foco.
 As macros ficam salvas na pasta `macros`.

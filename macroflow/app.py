@@ -461,6 +461,8 @@ class MacroApp(ctk.CTk):
             self.set_record_button_idle()
         elif action == "recording_started":
             self.on_recording_started()
+        elif action == "recording_countdown":
+            self.on_recording_countdown(payload)
         elif action == "recording_stopped":
             self.on_recording_stopped()
         elif action == "event_added":
@@ -480,19 +482,35 @@ class MacroApp(ctk.CTk):
         elif action == "play_shortcut":
             self.play_current()
         elif action == "escape":
-            self.close()
+            self.handle_close_shortcut()
+
+    def handle_close_shortcut(self):
+        if self.focus_displayof() is None:
+            self.status_var.set("Esc ignorado: MacroFlow nao esta em foco.")
+            return
+        self.close()
 
     def on_recording_started(self):
         self.events = []
         self.render_events()
         self.pressed_inputs.clear()
         self.live_inputs_var.set("Nada pressionado")
-        self.live_action_var.set("Gravando em tempo real")
+        self.live_action_var.set("Gravando agora")
+        self.record_button.configure(text="Parar", fg_color="#ef8a2f", hover_color="#c96f24")
+
+    def on_recording_countdown(self, remaining):
+        self.events = []
+        self.render_events()
+        self.pressed_inputs.clear()
+        self.live_inputs_var.set("Nada pressionado")
+        self.live_action_var.set(f"Gravacao comeca em {remaining}")
+        self.record_button.configure(text=f"{remaining}...", fg_color="#ef8a2f", hover_color="#c96f24")
 
     def on_recording_stopped(self):
         self.pressed_inputs.clear()
         self.live_inputs_var.set("Nada pressionado")
         self.live_action_var.set("Gravacao encerrada")
+        self.set_record_button_idle()
 
     def change_theme(self):
         ctk.set_appearance_mode(self.theme_var.get())
@@ -594,9 +612,12 @@ class MacroApp(ctk.CTk):
         if self.engine.recording:
             self.engine.stop_recording()
             self.set_record_button_idle()
+        elif self.engine.recording_pending:
+            self.engine.stop_recording()
+            self.set_record_button_idle()
         else:
             self.engine.start_recording()
-            self.record_button.configure(text="Parar", fg_color="#ef8a2f", hover_color="#c96f24")
+            self.record_button.configure(text="3...", fg_color="#ef8a2f", hover_color="#c96f24")
 
     def set_record_button_idle(self):
         self.record_button.configure(text="Gravar", fg_color="#d63d3d", hover_color="#b83232")

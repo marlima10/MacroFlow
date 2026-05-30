@@ -13,6 +13,7 @@ class MacroEngine:
     def __init__(self, ui_queue, shortcuts=None):
         self.events = []
         self.recording = False
+        self.recording_pending = False
         self.playing = False
         self.started_at = 0.0
         self.last_mouse_move = None
@@ -29,8 +30,27 @@ class MacroEngine:
         if self.playing:
             self.notify("Pare a reproducao antes de gravar.")
             return
+        if self.recording_pending:
+            self.notify("A gravacao ja esta em contagem regressiva.")
+            return
 
+        self.recording_pending = True
         self.events = []
+        thread = threading.Thread(target=self._recording_countdown_worker, daemon=True)
+        thread.start()
+
+    def _recording_countdown_worker(self):
+        for remaining in (3, 2, 1):
+            if not self.recording_pending:
+                return
+            self.ui_queue.put(("recording_countdown", remaining))
+            self.notify(f"Gravacao comeca em {remaining}...")
+            time.sleep(1)
+
+        if not self.recording_pending:
+            return
+
+        self.recording_pending = False
         self.recording = True
         self.started_at = time.perf_counter()
         self.last_mouse_move = None
@@ -38,6 +58,11 @@ class MacroEngine:
         self.notify(f"Gravando... pressione {shortcut_label(self.shortcuts['record'])} para parar.")
 
     def stop_recording(self):
+        if self.recording_pending:
+            self.recording_pending = False
+            self.ui_queue.put(("recording_stopped", None))
+            self.notify("Contagem de gravacao cancelada.")
+            return
         if not self.recording:
             return
 
@@ -176,7 +201,7 @@ class MacroEngine:
     def _handle_control_key(self, key):
         shortcut = key_to_shortcut(key)
         if shortcut == self.shortcuts["record"]:
-            if self.recording:
+            if self.recording or self.recording_pending:
                 self.stop_recording()
             else:
                 self.start_recording()
