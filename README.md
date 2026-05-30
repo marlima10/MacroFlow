@@ -24,6 +24,8 @@ python macro_recorder.py
 - Digite um nome e clique em `Salvar`.
 - Selecione uma macro na lista para carregar.
 - Clique em `Reproduzir` ou pressione `F9`.
+- Pressione `F10` para parar a reproducao da macro.
+- Enquanto a macro estiver em reproducao, um alerta verde piscando aparece no painel superior.
 - Veja os eventos no painel visual em formato de linha do tempo.
 - Use `Limpar` para remover todos os eventos da macro atual.
 - Dê duplo clique em uma celula da tabela para editar tempo, tipo ou dados JSON ali mesmo.

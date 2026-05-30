@@ -47,6 +47,7 @@ Responsabilidades:
 - salvar, carregar, excluir e limpar macros
 - atualizar a tabela e a timeline visual
 - controlar tema claro/escuro
+- exibir alerta verde piscando durante reproducao
 
 Quando mexer aqui:
 
@@ -67,7 +68,8 @@ Responsabilidades:
 - guardar eventos com tempo relativo
 - enviar eventos em tempo real para a interface
 - reproduzir a macro capturada
-- tratar atalhos globais como `F8`, `F9` e `Esc`
+- parar a reproducao em andamento
+- tratar atalhos globais como `F8`, `F9`, `F10` e `Esc`
 
 Quando mexer aqui:
 
@@ -188,6 +190,7 @@ Cada macro salva contem:
 2. `MacroApp` envia os eventos atuais para `MacroEngine`.
 3. O motor espera 3 segundos para o usuario focar a janela alvo.
 4. Os eventos sao executados respeitando os intervalos de tempo capturados.
+5. Se o usuario pressionar `F10`, o motor interrompe a reproducao.
 
 ## Formato basico de evento
 

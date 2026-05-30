@@ -12,6 +12,7 @@ from .input_utils import key_from_data, key_label, key_to_data
 CONTROL_KEYS = {
     keyboard.Key.f8,
     keyboard.Key.f9,
+    keyboard.Key.f10,
     keyboard.Key.esc,
 }
 
@@ -24,6 +25,7 @@ class MacroEngine:
         self.started_at = 0.0
         self.last_mouse_move = None
         self.ui_queue = ui_queue
+        self.stop_playback_requested = threading.Event()
         self.keyboard_controller = KeyboardController()
         self.mouse_controller = MouseController()
 
@@ -59,8 +61,17 @@ class MacroEngine:
             self.notify("Nao ha eventos para reproduzir.")
             return
 
+        self.stop_playback_requested.clear()
         thread = threading.Thread(target=self._play_worker, args=(events,), daemon=True)
         thread.start()
+
+    def stop_playback(self):
+        if not self.playing:
+            self.notify("Nenhuma reproducao em andamento.")
+            return
+
+        self.stop_playback_requested.set()
+        self.notify("Parando reproducao...")
 
     def timestamp(self):
         return round(time.perf_counter() - self.started_at, 4)
@@ -77,21 +88,24 @@ class MacroEngine:
         self.playing = True
         self.ui_queue.put(("playing", True))
         self.notify("Reproduzindo em 3 segundos. Coloque a janela alvo em foco.")
-        time.sleep(3)
+        if self.stop_playback_requested.wait(3):
+            self._finish_playback("Reproducao interrompida.")
+            return
 
+        finish_message = "Reproducao finalizada."
         previous_t = 0.0
         try:
             for event in events:
                 delay = max(0, float(event.get("t", 0)) - previous_t)
-                time.sleep(delay)
+                if self.stop_playback_requested.wait(delay):
+                    finish_message = "Reproducao interrompida."
+                    return
                 previous_t = float(event.get("t", 0))
                 self.run_event(event)
         except Exception as exc:
-            self.notify(f"Erro na reproducao: {exc}")
+            finish_message = f"Erro na reproducao: {exc}"
         finally:
-            self.playing = False
-            self.ui_queue.put(("playing", False))
-            self.notify("Reproducao finalizada.")
+            self._finish_playback(finish_message)
 
     def run_event(self, event):
         event_type = event["type"]
@@ -167,10 +181,19 @@ class MacroEngine:
         if key == keyboard.Key.f9:
             self.ui_queue.put(("play_shortcut", None))
             return True
+        if key == keyboard.Key.f10:
+            self.stop_playback()
+            return True
         if key == keyboard.Key.esc:
             self.ui_queue.put(("escape", None))
             return True
         return False
+
+    def _finish_playback(self, message):
+        self.playing = False
+        self.stop_playback_requested.clear()
+        self.ui_queue.put(("playing", False))
+        self.notify(message)
 
     def _should_skip_mouse_move(self, now, x, y):
         if self.last_mouse_move is None:
@@ -193,4 +216,3 @@ class MacroEngine:
             self.keyboard_controller.press(key)
         else:
             self.keyboard_controller.release(key)
-

@@ -32,6 +32,8 @@ class MacroApp(ctk.CTk):
         self.pressed_inputs = set()
         self.theme_var = tk.StringVar(value="Dark")
         self.cell_editor = None
+        self.playback_blink_on = False
+        self.playback_blink_active = False
 
         self.create_widgets()
         self.apply_tree_style()
@@ -145,13 +147,22 @@ class MacroApp(ctk.CTk):
         ctk.CTkLabel(status_card, text="Atalhos", font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, padx=(18, 12), pady=(14, 4), sticky="w"
         )
-        ctk.CTkLabel(status_card, text="F8 grava/para  |  F9 reproduz  |  Esc fecha").grid(
+        ctk.CTkLabel(status_card, text="F8 grava/para  |  F9 reproduz  |  F10 para reproducao  |  Esc fecha").grid(
             row=0, column=1, padx=0, pady=(14, 4), sticky="w"
         )
 
+        self.playback_alert = ctk.CTkLabel(
+            status_card,
+            text="● Reproduzindo",
+            text_color="#22c55e",
+            font=ctk.CTkFont(weight="bold"),
+        )
+        self.playback_alert.grid(row=0, column=2, padx=(12, 8), pady=(14, 4), sticky="e")
+        self.playback_alert.grid_remove()
+
         self.status_var = tk.StringVar(value="Pronto para gravar.")
         ctk.CTkLabel(status_card, textvariable=self.status_var, anchor="e").grid(
-            row=0, column=2, padx=(12, 18), pady=(14, 4), sticky="e"
+            row=0, column=3, padx=(8, 18), pady=(14, 4), sticky="e"
         )
 
         ctk.CTkLabel(status_card, text="Ao vivo", font=ctk.CTkFont(weight="bold")).grid(
@@ -293,6 +304,7 @@ class MacroApp(ctk.CTk):
             self.live_action_var.set(payload)
         elif action == "playing":
             self.play_button.configure(state="disabled" if payload else "normal")
+            self.set_playback_alert(payload)
         elif action == "play_shortcut":
             self.play_current()
         elif action == "escape":
@@ -313,6 +325,27 @@ class MacroApp(ctk.CTk):
     def change_theme(self):
         ctk.set_appearance_mode(self.theme_var.get())
         self.apply_tree_style()
+
+    def set_playback_alert(self, is_playing):
+        if is_playing:
+            self.playback_blink_active = True
+            self.playback_blink_on = True
+            self.playback_alert.grid()
+            self.blink_playback_alert()
+            return
+
+        self.playback_blink_active = False
+        self.playback_blink_on = False
+        self.playback_alert.grid_remove()
+
+    def blink_playback_alert(self):
+        if not self.playback_blink_active:
+            return
+
+        color = "#22c55e" if self.playback_blink_on else "#064e3b"
+        self.playback_alert.configure(text_color=color)
+        self.playback_blink_on = not self.playback_blink_on
+        self.after(420, self.blink_playback_alert)
 
     def update_live_inputs(self):
         text = " + ".join(sorted(self.pressed_inputs)) if self.pressed_inputs else "Nada pressionado"
@@ -554,4 +587,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         sys.exit(0)
-
