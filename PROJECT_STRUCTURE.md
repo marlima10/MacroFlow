@@ -20,6 +20,7 @@ outputs/
     +-- constants.py
     +-- engine.py
     +-- input_utils.py
+    +-- smart_engine.py
     +-- timeline.py
 ```
 
@@ -98,6 +99,26 @@ Quando mexer aqui:
 - mudar cores, tamanhos ou espacamentos
 - melhorar a representacao de mouse, scroll ou teclas especiais
 
+### `macroflow/smart_engine.py`
+
+Modulo da macro inteligente por visao de tela.
+
+Responsabilidades:
+
+- verificar dependencias de captura/OCR
+- capturar a tela em tempo real
+- detectar a borda verde do item selecionado
+- procurar o texto alvo via OCR
+- calcular a direcao do alvo
+- enviar setas ate o item alvo ser selecionado
+
+Quando mexer aqui:
+
+- melhorar deteccao da borda verde
+- calibrar OCR para jogos/telas especificas
+- mudar estrategia de navegacao
+- adicionar suporte a templates/imagens de referencia
+
 ### `macroflow/input_utils.py`
 
 Modulo de utilidades para eventos de entrada.
@@ -138,6 +159,9 @@ Lista as dependencias Python do projeto:
 
 - `pynput`: captura e reproduz teclado/mouse
 - `customtkinter`: cria a interface grafica moderna
+- `Pillow`: captura screenshot da tela
+- `opencv-python`: detecta borda verde e regioes visuais
+- `pytesseract`: le texto dos cards via OCR
 
 ### `shortcuts.json`
 

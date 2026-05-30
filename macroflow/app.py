@@ -6,11 +6,12 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
 import customtkinter as ctk
-from pynput import mouse
+from pynput import keyboard, mouse
 
 from .constants import DEFAULT_SHORTCUTS, MACROS_DIR, SHORTCUT_LABELS, SHORTCUTS_FILE
 from .engine import MacroEngine
 from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
+from .smart_engine import SmartMacroEngine
 from .timeline import render_timeline
 
 
@@ -27,6 +28,7 @@ class MacroApp(ctk.CTk):
         self.ui_queue = queue.Queue()
         self.shortcuts = self.load_shortcuts()
         self.engine = MacroEngine(self.ui_queue, self.shortcuts)
+        self.smart_engine = SmartMacroEngine(self.set_smart_status)
         self.current_file = None
         self.events = []
         self.macro_buttons = []
@@ -36,6 +38,7 @@ class MacroApp(ctk.CTk):
         self.cell_editor = None
         self.playback_blink_on = False
         self.playback_blink_active = False
+        self.active_view = "conventional"
 
         self.create_widgets()
         self.apply_tree_style()
@@ -53,7 +56,7 @@ class MacroApp(ctk.CTk):
     def create_sidebar(self):
         self.sidebar = ctk.CTkFrame(self, width=230, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(2, weight=1)
+        self.sidebar.grid_rowconfigure(4, weight=1)
 
         ctk.CTkLabel(
             self.sidebar,
@@ -61,12 +64,30 @@ class MacroApp(ctk.CTk):
             font=ctk.CTkFont(size=22, weight="bold"),
         ).grid(row=0, column=0, padx=22, pady=(24, 16), sticky="w")
 
+        self.conventional_nav_button = ctk.CTkButton(
+            self.sidebar,
+            text="Macro convencional",
+            height=38,
+            command=lambda: self.show_view("conventional"),
+        )
+        self.conventional_nav_button.grid(row=1, column=0, padx=22, pady=(0, 8), sticky="ew")
+
+        self.smart_nav_button = ctk.CTkButton(
+            self.sidebar,
+            text="Macro inteligente",
+            height=38,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=lambda: self.show_view("smart"),
+        )
+        self.smart_nav_button.grid(row=2, column=0, padx=22, pady=(0, 12), sticky="ew")
+
         ctk.CTkButton(self.sidebar, text="Nova macro", height=38, command=self.new_macro).grid(
-            row=1, column=0, padx=22, pady=(0, 12), sticky="ew"
+            row=3, column=0, padx=22, pady=(0, 12), sticky="ew"
         )
 
         self.macro_scroll = ctk.CTkScrollableFrame(self.sidebar, label_text="Macros salvas")
-        self.macro_scroll.grid(row=2, column=0, padx=16, pady=(0, 16), sticky="nsew")
+        self.macro_scroll.grid(row=4, column=0, padx=16, pady=(0, 16), sticky="nsew")
 
         self.theme_switch = ctk.CTkSwitch(
             self.sidebar,
@@ -77,21 +98,33 @@ class MacroApp(ctk.CTk):
             command=self.change_theme,
         )
         self.theme_switch.select()
-        self.theme_switch.grid(row=3, column=0, padx=22, pady=(0, 18), sticky="w")
+        self.theme_switch.grid(row=5, column=0, padx=22, pady=(0, 18), sticky="w")
 
     def create_main_area(self):
         self.main = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.main.grid(row=0, column=1, sticky="nsew", padx=18, pady=18)
         self.main.grid_columnconfigure(0, weight=1)
-        self.main.grid_rowconfigure(2, weight=1)
+        self.main.grid_rowconfigure(0, weight=1)
+
+        self.conventional_view = ctk.CTkFrame(self.main, fg_color="transparent")
+        self.conventional_view.grid(row=0, column=0, sticky="nsew")
+        self.conventional_view.grid_columnconfigure(0, weight=1)
+        self.conventional_view.grid_rowconfigure(2, weight=1)
+
+        self.smart_view = ctk.CTkFrame(self.main, fg_color="transparent")
+        self.smart_view.grid(row=0, column=0, sticky="nsew")
+        self.smart_view.grid_columnconfigure(0, weight=1)
+        self.smart_view.grid_rowconfigure(2, weight=1)
 
         self.create_header()
         self.create_status_card()
         self.create_events_card()
         self.create_editor()
+        self.create_smart_view()
+        self.show_view("conventional")
 
     def create_header(self):
-        header = ctk.CTkFrame(self.main, corner_radius=10)
+        header = ctk.CTkFrame(self.conventional_view, corner_radius=10)
         header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         header.grid_columnconfigure(0, weight=1)
 
@@ -142,7 +175,7 @@ class MacroApp(ctk.CTk):
         ).pack(side="left", padx=8)
 
     def create_status_card(self):
-        status_card = ctk.CTkFrame(self.main, corner_radius=10)
+        status_card = ctk.CTkFrame(self.conventional_view, corner_radius=10)
         status_card.grid(row=1, column=0, sticky="ew", pady=(0, 14))
         status_card.grid_columnconfigure(1, weight=1)
 
@@ -190,7 +223,7 @@ class MacroApp(ctk.CTk):
         )
 
     def create_events_card(self):
-        table_card = ctk.CTkFrame(self.main, corner_radius=10)
+        table_card = ctk.CTkFrame(self.conventional_view, corner_radius=10)
         table_card.grid(row=2, column=0, sticky="nsew")
         table_card.grid_columnconfigure(0, weight=1)
         table_card.grid_rowconfigure(2, weight=1)
@@ -233,7 +266,7 @@ class MacroApp(ctk.CTk):
         self.table.configure(yscrollcommand=scrollbar.set)
 
     def create_editor(self):
-        editor = ctk.CTkFrame(self.main, corner_radius=10)
+        editor = ctk.CTkFrame(self.conventional_view, corner_radius=10)
         editor.grid(row=3, column=0, sticky="ew", pady=(14, 0))
         editor.grid_columnconfigure(5, weight=1)
 
@@ -256,6 +289,130 @@ class MacroApp(ctk.CTk):
             hover_color="#4d5056",
             command=self.remove_event,
         ).grid(row=0, column=7, padx=(4, 18), pady=16)
+
+    def create_smart_view(self):
+        header = ctk.CTkFrame(self.smart_view, corner_radius=10)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        header.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            header,
+            text="Macro inteligente",
+            font=ctk.CTkFont(size=22, weight="bold"),
+        ).grid(row=0, column=0, columnspan=4, padx=18, pady=(18, 8), sticky="w")
+
+        ctk.CTkLabel(header, text="Alvo visual").grid(row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="w")
+        self.smart_target_var = tk.StringVar(value="IMPREZA 22B")
+        ctk.CTkEntry(
+            header,
+            textvariable=self.smart_target_var,
+            placeholder_text="Ex: IMPREZA 22B",
+            height=38,
+        ).grid(row=1, column=1, padx=(0, 8), pady=(0, 18), sticky="ew")
+
+        ctk.CTkButton(header, text="Escanear tela", height=38, command=self.scan_smart_target).grid(
+            row=1, column=2, padx=6, pady=(0, 18)
+        )
+        ctk.CTkButton(header, text="Executar busca", height=38, command=self.run_smart_navigation).grid(
+            row=1, column=3, padx=6, pady=(0, 18)
+        )
+        ctk.CTkButton(
+            header,
+            text="Parar",
+            height=38,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.smart_engine.stop_navigation,
+        ).grid(row=1, column=4, padx=(6, 18), pady=(0, 18))
+
+        settings = ctk.CTkFrame(self.smart_view, corner_radius=10)
+        settings.grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        settings.grid_columnconfigure(3, weight=1)
+
+        self.smart_max_steps_var = tk.StringVar(value="30")
+        self.smart_delay_var = tk.StringVar(value="0.35")
+        ctk.CTkLabel(settings, text="Passos max.").grid(row=0, column=0, padx=(18, 8), pady=16)
+        ctk.CTkEntry(settings, width=70, textvariable=self.smart_max_steps_var).grid(row=0, column=1, pady=16)
+        ctk.CTkLabel(settings, text="Intervalo").grid(row=0, column=2, padx=(18, 8), pady=16)
+        ctk.CTkEntry(settings, width=70, textvariable=self.smart_delay_var).grid(row=0, column=3, pady=16, sticky="w")
+        ctk.CTkButton(
+            settings,
+            text="Verificar dependencias",
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.show_smart_dependencies,
+        ).grid(row=0, column=4, padx=(12, 18), pady=16)
+
+        panel = ctk.CTkFrame(self.smart_view, corner_radius=10)
+        panel.grid(row=2, column=0, sticky="nsew")
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            panel,
+            text="Leitura da tela",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
+
+        self.smart_log = ctk.CTkTextbox(panel, height=260)
+        self.smart_log.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="nsew")
+        self.set_smart_status(
+            "Use esta tela para localizar um carro pelo texto na tela. "
+            "O motor detecta a borda verde atual e tenta navegar com as setas ate o alvo."
+        )
+
+    def show_view(self, view):
+        self.active_view = view
+        if view == "smart":
+            self.smart_view.tkraise()
+            self.conventional_nav_button.configure(fg_color="#5c5f66", hover_color="#4d5056")
+            self.smart_nav_button.configure(fg_color=("#3b8ed0", "#1f6aa5"), hover_color=("#36719f", "#144870"))
+            return
+
+        self.conventional_view.tkraise()
+        self.conventional_nav_button.configure(fg_color=("#3b8ed0", "#1f6aa5"), hover_color=("#36719f", "#144870"))
+        self.smart_nav_button.configure(fg_color="#5c5f66", hover_color="#4d5056")
+
+    def set_smart_status(self, text):
+        if not hasattr(self, "smart_log"):
+            return
+        self.smart_log.insert("end", f"{time.strftime('%H:%M:%S')}  {text}\n")
+        self.smart_log.see("end")
+
+    def show_smart_dependencies(self):
+        status = self.smart_engine.dependency_status()
+        lines = ["Dependencias da macro inteligente:"]
+        for name, ok in status.items():
+            lines.append(f"- {name}: {'OK' if ok else 'ausente'}")
+        if not all(status.values()):
+            lines.append("Instale as dependencias com: python -m pip install -r requirements.txt")
+            lines.append("O pytesseract tambem precisa do Tesseract OCR instalado no Windows.")
+        self.set_smart_status("\n".join(lines))
+
+    def scan_smart_target(self):
+        target = self.smart_target_var.get().strip()
+        if not target:
+            messagebox.showerror("Alvo vazio", "Digite o nome do carro alvo.")
+            return
+        result = self.smart_engine.scan_screen(target)
+        self.set_smart_status(result["message"])
+        if result.get("selected"):
+            self.set_smart_status(f"Selecionado: {result['selected']}")
+        if result.get("target"):
+            self.set_smart_status(f"Alvo: {result['target']}")
+
+    def run_smart_navigation(self):
+        target = self.smart_target_var.get().strip()
+        if not target:
+            messagebox.showerror("Alvo vazio", "Digite o nome do carro alvo.")
+            return
+        try:
+            max_steps = int(self.smart_max_steps_var.get())
+            step_delay = float(self.smart_delay_var.get().replace(",", "."))
+        except ValueError:
+            messagebox.showerror("Configuracao invalida", "Passos max. e intervalo precisam ser numericos.")
+            return
+        self.smart_engine.start_navigation(target, max_steps=max_steps, step_delay=step_delay)
 
     def apply_tree_style(self):
         dark = self.theme_var.get() == "Dark"
@@ -683,6 +840,7 @@ class MacroApp(ctk.CTk):
     def close(self):
         try:
             self.engine.stop_playback()
+            self.smart_engine.stop_navigation()
             self.mouse_listener.stop()
             self.keyboard_listener.stop()
         finally:

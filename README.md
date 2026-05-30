@@ -38,6 +38,26 @@ Ao reproduzir, o programa espera 3 segundos para voce colocar a janela certa em 
 As macros ficam salvas na pasta `macros`.
 Os atalhos personalizados ficam salvos em `shortcuts.json`.
 
+## Macro inteligente
+
+Use `Macro inteligente` no menu lateral para abrir a tela de navegacao visual.
+
+Essa tela permite:
+
+- informar um alvo visual, como `IMPREZA 22B`
+- escanear a tela procurando a borda verde do item selecionado
+- procurar o texto alvo com OCR
+- navegar usando setas ate o alvo
+
+Dependencias extras:
+
+- `Pillow`
+- `opencv-python`
+- `pytesseract`
+- Tesseract OCR instalado no Windows
+
+Se alguma dependencia estiver ausente, clique em `Verificar dependencias` na tela inteligente.
+
 ## Organizacao do codigo
 
 - `macro_recorder.py`: arquivo principal para executar o app.
@@ -45,4 +65,5 @@ Os atalhos personalizados ficam salvos em `shortcuts.json`.
 - `macroflow/engine.py`: gravacao, captura e reproducao de teclado/mouse.
 - `macroflow/timeline.py`: desenho da linha do tempo visual.
 - `macroflow/input_utils.py`: conversao e nomes de teclas/eventos.
+- `macroflow/smart_engine.py`: leitura da tela e navegacao por alvo visual.
 - `macroflow/constants.py`: caminhos usados pelo projeto.
