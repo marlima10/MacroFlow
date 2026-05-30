@@ -22,7 +22,7 @@ python macro_recorder.py
 - Veja no painel `Ao vivo` quais teclas ou botoes do mouse estao pressionados em tempo real.
 - Clique em `Parar` ou pressione `F8` de novo para parar.
 - Digite um nome e clique em `Salvar`.
-- Selecione uma macro na lista para carregar.
+- Selecione uma macro na lista lateral para carregar; a macro ativa fica destacada.
 - Clique em `Reproduzir` ou pressione `F9`.
 - Pressione `F10` para parar a reproducao da macro.
 - Enquanto a macro estiver em reproducao, um alerta verde piscando aparece no painel superior.

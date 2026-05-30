@@ -29,6 +29,7 @@ class MacroApp(ctk.CTk):
         self.current_file = None
         self.events = []
         self.macro_buttons = []
+        self.selected_macro_path = None
         self.pressed_inputs = set()
         self.theme_var = tk.StringVar(value="Dark")
         self.cell_editor = None
@@ -368,10 +369,12 @@ class MacroApp(ctk.CTk):
 
     def new_macro(self):
         self.current_file = None
+        self.selected_macro_path = None
         self.events = []
         self.engine.events = []
         self.name_var.set("")
         self.render_events()
+        self.update_macro_selection()
         self.live_inputs_var.set("Nada pressionado")
         self.live_action_var.set("Aguardando gravacao")
         self.status_var.set("Nova macro em branco.")
@@ -411,16 +414,19 @@ class MacroApp(ctk.CTk):
         }
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         self.current_file = path
+        self.selected_macro_path = path
         self.refresh_macro_list(select_path=path)
         self.status_var.set(f"Macro salva: {path.name}")
 
     def load_macro(self, path):
         data = json.loads(path.read_text(encoding="utf-8"))
         self.current_file = path
+        self.selected_macro_path = path
         self.name_var.set(data.get("name") or path.stem)
         self.events = data.get("events", [])
         self.engine.events = list(self.events)
         self.render_events()
+        self.update_macro_selection()
         self.status_var.set(f"Macro carregada: {path.name}")
 
     def delete_current(self):
@@ -433,7 +439,7 @@ class MacroApp(ctk.CTk):
         self.refresh_macro_list()
 
     def refresh_macro_list(self, select_path=None):
-        for button in self.macro_buttons:
+        for button, _path in self.macro_buttons:
             button.destroy()
         self.macro_buttons = []
         self.macro_paths = sorted(MACROS_DIR.glob("*.json"))
@@ -447,12 +453,33 @@ class MacroApp(ctk.CTk):
                 text_color=("gray10", "gray90"),
                 hover_color=("#d8e6f3", "#333333"),
                 command=lambda selected=path: self.load_macro(selected),
+                border_width=0,
             )
             button.grid(row=index, column=0, sticky="ew", padx=4, pady=4)
-            self.macro_buttons.append(button)
+            self.macro_buttons.append((button, path))
+
+        self.update_macro_selection()
 
         if select_path in self.macro_paths:
             self.load_macro(select_path)
+
+    def update_macro_selection(self):
+        for button, path in self.macro_buttons:
+            if self.selected_macro_path == path:
+                button.configure(
+                    fg_color=("#d8ecff", "#14395c"),
+                    hover_color=("#c7e2fb", "#1d4f7a"),
+                    border_width=2,
+                    border_color="#22c55e",
+                    text_color=("#0f172a", "#ffffff"),
+                )
+            else:
+                button.configure(
+                    fg_color="transparent",
+                    hover_color=("#d8e6f3", "#333333"),
+                    border_width=0,
+                    text_color=("gray10", "gray90"),
+                )
 
     def render_events(self):
         self.table.delete(*self.table.get_children())
