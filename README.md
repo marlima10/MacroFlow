@@ -26,6 +26,7 @@ python macro_recorder.py
 - Clique em `Reproduzir` ou pressione `F9`.
 - Pressione `F10` para parar a reproducao da macro.
 - Enquanto a macro estiver em reproducao, um alerta verde piscando aparece no painel superior.
+- Veja os atalhos em cards no painel superior e use `Editar atalhos` para alterar os padroes.
 - Veja os eventos no painel visual em formato de linha do tempo.
 - Use `Limpar` para remover todos os eventos da macro atual.
 - Dê duplo clique em uma celula da tabela para editar tempo, tipo ou dados JSON ali mesmo.
@@ -35,6 +36,7 @@ python macro_recorder.py
 
 Ao reproduzir, o programa espera 3 segundos para voce colocar a janela certa em foco.
 As macros ficam salvas na pasta `macros`.
+Os atalhos personalizados ficam salvos em `shortcuts.json`.
 
 ## Organizacao do codigo
 

@@ -6,11 +6,11 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
 import customtkinter as ctk
-from pynput import keyboard, mouse
+from pynput import mouse
 
-from .constants import MACROS_DIR
+from .constants import DEFAULT_SHORTCUTS, MACROS_DIR, SHORTCUT_LABELS, SHORTCUTS_FILE
 from .engine import MacroEngine
-from .input_utils import event_details
+from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
 from .timeline import render_timeline
 
 
@@ -25,7 +25,8 @@ class MacroApp(ctk.CTk):
         self.minsize(940, 560)
 
         self.ui_queue = queue.Queue()
-        self.engine = MacroEngine(self.ui_queue)
+        self.shortcuts = self.load_shortcuts()
+        self.engine = MacroEngine(self.ui_queue, self.shortcuts)
         self.current_file = None
         self.events = []
         self.macro_buttons = []
@@ -146,24 +147,34 @@ class MacroApp(ctk.CTk):
         status_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(status_card, text="Atalhos", font=ctk.CTkFont(weight="bold")).grid(
-            row=0, column=0, padx=(18, 12), pady=(14, 4), sticky="w"
+            row=0, column=0, padx=(18, 12), pady=(14, 6), sticky="w"
         )
-        ctk.CTkLabel(status_card, text="F8 grava/para  |  F9 reproduz  |  F10 para reproducao  |  Esc fecha").grid(
-            row=0, column=1, padx=0, pady=(14, 4), sticky="w"
-        )
+        self.shortcuts_frame = ctk.CTkFrame(status_card, fg_color="transparent")
+        self.shortcuts_frame.grid(row=0, column=1, padx=0, pady=(10, 6), sticky="w")
+        self.render_shortcut_pills()
+
+        ctk.CTkButton(
+            status_card,
+            text="Editar atalhos",
+            width=120,
+            height=30,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.open_shortcut_editor,
+        ).grid(row=0, column=2, padx=(12, 8), pady=(10, 6), sticky="e")
 
         self.playback_alert = ctk.CTkLabel(
             status_card,
-            text="● Reproduzindo",
+            text="* Reproduzindo",
             text_color="#22c55e",
             font=ctk.CTkFont(weight="bold"),
         )
-        self.playback_alert.grid(row=0, column=2, padx=(12, 8), pady=(14, 4), sticky="e")
+        self.playback_alert.grid(row=0, column=3, padx=(8, 8), pady=(14, 4), sticky="e")
         self.playback_alert.grid_remove()
 
         self.status_var = tk.StringVar(value="Pronto para gravar.")
         ctk.CTkLabel(status_card, textvariable=self.status_var, anchor="e").grid(
-            row=0, column=3, padx=(8, 18), pady=(14, 4), sticky="e"
+            row=0, column=4, padx=(8, 18), pady=(14, 4), sticky="e"
         )
 
         ctk.CTkLabel(status_card, text="Ao vivo", font=ctk.CTkFont(weight="bold")).grid(
@@ -327,6 +338,73 @@ class MacroApp(ctk.CTk):
         ctk.set_appearance_mode(self.theme_var.get())
         self.apply_tree_style()
 
+    def render_shortcut_pills(self):
+        for child in self.shortcuts_frame.winfo_children():
+            child.destroy()
+
+        for action in ("record", "play", "stop_playback", "close"):
+            label = SHORTCUT_LABELS[action]
+            key = shortcut_label(self.shortcuts[action])
+            pill = ctk.CTkFrame(self.shortcuts_frame, corner_radius=8, fg_color=("#e8eef5", "#30343a"))
+            pill.pack(side="left", padx=(0, 8))
+            ctk.CTkLabel(pill, text=key, font=ctk.CTkFont(weight="bold"), width=42).pack(
+                side="left", padx=(8, 4), pady=5
+            )
+            ctk.CTkLabel(pill, text=label, text_color=("gray25", "gray75")).pack(
+                side="left", padx=(0, 8), pady=5
+            )
+
+    def open_shortcut_editor(self):
+        ShortcutEditor(self, dict(self.shortcuts))
+
+    def apply_shortcuts(self, shortcuts):
+        normalized = {action: normalize_shortcut(value) for action, value in shortcuts.items()}
+        values = list(normalized.values())
+        if any(not value for value in values):
+            messagebox.showerror("Atalho invalido", "Todos os atalhos precisam ter valor.")
+            return False
+        invalid = [shortcut_label(value) for value in values if not is_valid_shortcut(value)]
+        if invalid:
+            messagebox.showerror(
+                "Atalho invalido",
+                "Use teclas simples como F8, F9, F10, Esc, Enter, Ctrl, Alt ou letras/numeros.\n"
+                f"Invalidos: {', '.join(invalid)}",
+            )
+            return False
+        if len(set(values)) != len(values):
+            messagebox.showerror("Atalho duplicado", "Cada acao precisa ter um atalho diferente.")
+            return False
+
+        self.shortcuts = normalized
+        self.engine.set_shortcuts(normalized)
+        self.save_shortcuts()
+        self.render_shortcut_pills()
+        self.status_var.set("Atalhos atualizados.")
+        return True
+
+    def reset_shortcuts(self):
+        self.apply_shortcuts(dict(DEFAULT_SHORTCUTS))
+
+    def load_shortcuts(self):
+        if not SHORTCUTS_FILE.exists():
+            return dict(DEFAULT_SHORTCUTS)
+        try:
+            data = json.loads(SHORTCUTS_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return dict(DEFAULT_SHORTCUTS)
+
+        shortcuts = dict(DEFAULT_SHORTCUTS)
+        for action in shortcuts:
+            if action in data:
+                shortcuts[action] = normalize_shortcut(str(data[action]))
+        values = list(shortcuts.values())
+        if any(not is_valid_shortcut(value) for value in values) or len(set(values)) != len(values):
+            return dict(DEFAULT_SHORTCUTS)
+        return shortcuts
+
+    def save_shortcuts(self):
+        SHORTCUTS_FILE.write_text(json.dumps(self.shortcuts, indent=2), encoding="utf-8")
+
     def set_playback_alert(self, is_playing):
         if is_playing:
             self.playback_blink_active = True
@@ -419,7 +497,13 @@ class MacroApp(ctk.CTk):
         self.status_var.set(f"Macro salva: {path.name}")
 
     def load_macro(self, path):
-        data = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            messagebox.showerror("Macro invalida", f"Nao foi possivel carregar {path.name}.\n\n{exc}")
+            self.status_var.set(f"Erro ao carregar macro: {path.name}")
+            return
+
         self.current_file = path
         self.selected_macro_path = path
         self.name_var.set(data.get("name") or path.stem)
@@ -571,6 +655,10 @@ class MacroApp(ctk.CTk):
             data = json.loads(self.event_data.get() or "{}")
             data["t"] = float(self.event_time.get())
             data["type"] = self.event_type.get().strip()
+            if not data["type"]:
+                raise ValueError("Tipo nao pode ficar vazio.")
+            if data["type"] not in {"mouse_move", "mouse_click", "mouse_scroll", "key"}:
+                raise ValueError(f"Tipo desconhecido: {data['type']}")
         except Exception as exc:
             messagebox.showerror("Evento invalido", str(exc))
             return
@@ -594,6 +682,7 @@ class MacroApp(ctk.CTk):
 
     def close(self):
         try:
+            self.engine.stop_playback()
             self.mouse_listener.stop()
             self.keyboard_listener.stop()
         finally:
@@ -602,6 +691,69 @@ class MacroApp(ctk.CTk):
     @staticmethod
     def safe_macro_name(name):
         return "".join(ch for ch in name if ch.isalnum() or ch in (" ", "-", "_")).strip()
+
+
+class ShortcutEditor(ctk.CTkToplevel):
+    def __init__(self, app, shortcuts):
+        super().__init__(app)
+        self.app = app
+        self.title("Editar atalhos")
+        self.geometry("460x340")
+        self.resizable(False, False)
+        self.transient(app)
+        self.grab_set()
+
+        self.entries = {}
+        self.create_widgets(shortcuts)
+
+    def create_widgets(self, shortcuts):
+        self.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            self,
+            text="Atalhos padrao",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, padx=22, pady=(22, 8), sticky="w")
+
+        ctk.CTkLabel(
+            self,
+            text="Use nomes como F8, F9, F10, Esc, Ctrl, Alt ou letras simples.",
+            text_color=("gray35", "gray75"),
+        ).grid(row=1, column=0, columnspan=2, padx=22, pady=(0, 16), sticky="w")
+
+        for row, action in enumerate(("record", "play", "stop_playback", "close"), start=2):
+            ctk.CTkLabel(self, text=SHORTCUT_LABELS[action]).grid(
+                row=row, column=0, padx=(22, 12), pady=8, sticky="w"
+            )
+            entry = ctk.CTkEntry(self)
+            entry.insert(0, shortcut_label(shortcuts[action]))
+            entry.grid(row=row, column=1, padx=(0, 22), pady=8, sticky="ew")
+            self.entries[action] = entry
+
+        buttons = ctk.CTkFrame(self, fg_color="transparent")
+        buttons.grid(row=6, column=0, columnspan=2, padx=22, pady=(18, 22), sticky="ew")
+
+        ctk.CTkButton(
+            buttons,
+            text="Restaurar padrao",
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.restore_defaults,
+        ).pack(side="left")
+        ctk.CTkButton(buttons, text="Cancelar", fg_color="#5c5f66", hover_color="#4d5056", command=self.destroy).pack(
+            side="right", padx=(8, 0)
+        )
+        ctk.CTkButton(buttons, text="Salvar", command=self.save).pack(side="right")
+
+    def restore_defaults(self):
+        for action, value in DEFAULT_SHORTCUTS.items():
+            self.entries[action].delete(0, tk.END)
+            self.entries[action].insert(0, shortcut_label(value))
+
+    def save(self):
+        shortcuts = {action: entry.get() for action, entry in self.entries.items()}
+        if self.app.apply_shortcuts(shortcuts):
+            self.destroy()
 
 
 def main():

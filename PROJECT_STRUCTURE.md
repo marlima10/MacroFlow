@@ -12,6 +12,7 @@ outputs/
 +-- requirements.txt
 +-- README.md
 +-- PROJECT_STRUCTURE.md
++-- shortcuts.json
 +-- macros/
 +-- macroflow/
     +-- __init__.py
@@ -48,6 +49,7 @@ Responsabilidades:
 - atualizar a tabela e a timeline visual
 - controlar tema claro/escuro
 - exibir alerta verde piscando durante reproducao
+- mostrar atalhos em cards e abrir a tela de edicao de atalhos
 
 Quando mexer aqui:
 
@@ -69,7 +71,7 @@ Responsabilidades:
 - enviar eventos em tempo real para a interface
 - reproduzir a macro capturada
 - parar a reproducao em andamento
-- tratar atalhos globais como `F8`, `F9`, `F10` e `Esc`
+- tratar atalhos globais configuraveis como `F8`, `F9`, `F10` e `Esc`
 
 Quando mexer aqui:
 
@@ -121,6 +123,8 @@ Responsabilidades:
 
 - definir o diretorio principal do app
 - definir a pasta onde as macros sao salvas
+- definir o arquivo `shortcuts.json`
+- definir os atalhos padrao
 - garantir que a pasta `macros/` exista
 
 Quando mexer aqui:
@@ -134,6 +138,17 @@ Lista as dependencias Python do projeto:
 
 - `pynput`: captura e reproduz teclado/mouse
 - `customtkinter`: cria a interface grafica moderna
+
+### `shortcuts.json`
+
+Arquivo criado automaticamente quando o usuario edita atalhos.
+
+Atalhos padrao:
+
+- `record`: `F8`
+- `play`: `F9`
+- `stop_playback`: `F10`
+- `close`: `Esc`
 
 ### `README.md`
 
