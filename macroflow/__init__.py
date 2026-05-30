@@ -1,0 +1,2 @@
+"""MacroFlow desktop macro recorder."""
+
