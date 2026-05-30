@@ -71,6 +71,7 @@ Responsabilidades:
 - guardar eventos com tempo relativo
 - enviar eventos em tempo real para a interface
 - reproduzir a macro capturada
+- reproduzir a macro em loop ate interrupcao
 - parar a reproducao em andamento
 - tratar atalhos globais configuraveis como `F8`, `F9`, `F10` e `Esc`
 

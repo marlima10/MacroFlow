@@ -24,6 +24,7 @@ python macro_recorder.py
 - Digite um nome e clique em `Salvar`.
 - Selecione uma macro na lista lateral para carregar; a macro ativa fica destacada.
 - Clique em `Reproduzir` ou pressione `F9`.
+- Ative `Loop` para repetir a macro ate pressionar `F10`.
 - Pressione `F10` para parar a reproducao da macro.
 - Enquanto a macro estiver em reproducao, um alerta verde piscando aparece no painel superior.
 - Veja os atalhos em cards no painel superior e use `Editar atalhos` para alterar os padroes.

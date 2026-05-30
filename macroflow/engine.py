@@ -46,7 +46,7 @@ class MacroEngine:
         self.notify(f"Gravacao parada. {len(self.events)} eventos capturados.")
         self.ui_queue.put(("events_changed", list(self.events)))
 
-    def play_events(self, events):
+    def play_events(self, events, loop=False):
         if self.recording:
             self.notify("Pare a gravacao antes de reproduzir.")
             return
@@ -58,7 +58,7 @@ class MacroEngine:
             return
 
         self.stop_playback_requested.clear()
-        thread = threading.Thread(target=self._play_worker, args=(events,), daemon=True)
+        thread = threading.Thread(target=self._play_worker, args=(events, loop), daemon=True)
         thread.start()
 
     def stop_playback(self):
@@ -80,24 +80,29 @@ class MacroEngine:
         self.events.append(event)
         self.ui_queue.put(("event_added", list(self.events)))
 
-    def _play_worker(self, events):
+    def _play_worker(self, events, loop):
         self.playing = True
         self.ui_queue.put(("playing", True))
-        self.notify("Reproduzindo em 3 segundos. Coloque a janela alvo em foco.")
+        mode = " em loop" if loop else ""
+        self.notify(f"Reproduzindo{mode} em 3 segundos. Coloque a janela alvo em foco.")
         if self.stop_playback_requested.wait(3):
             self._finish_playback("Reproducao interrompida.")
             return
 
         finish_message = "Reproducao finalizada."
-        previous_t = 0.0
         try:
-            for event in events:
-                delay = max(0, float(event.get("t", 0)) - previous_t)
-                if self.stop_playback_requested.wait(delay):
-                    finish_message = "Reproducao interrompida."
+            while True:
+                previous_t = 0.0
+                for event in events:
+                    delay = max(0, float(event.get("t", 0)) - previous_t)
+                    if self.stop_playback_requested.wait(delay):
+                        finish_message = "Reproducao interrompida."
+                        return
+                    previous_t = float(event.get("t", 0))
+                    self.run_event(event)
+                if not loop:
                     return
-                previous_t = float(event.get("t", 0))
-                self.run_event(event)
+                self.notify("Loop concluido. Reiniciando macro...")
         except Exception as exc:
             finish_message = f"Erro na reproducao: {exc}"
         finally:

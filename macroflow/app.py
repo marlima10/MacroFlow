@@ -35,6 +35,7 @@ class MacroApp(ctk.CTk):
         self.selected_macro_path = None
         self.pressed_inputs = set()
         self.theme_var = tk.StringVar(value="Dark")
+        self.loop_playback_var = tk.BooleanVar(value=False)
         self.cell_editor = None
         self.playback_blink_on = False
         self.playback_blink_active = False
@@ -155,6 +156,8 @@ class MacroApp(ctk.CTk):
 
         self.play_button = ctk.CTkButton(actions, text="Reproduzir", height=38, command=self.play_current)
         self.play_button.pack(side="left", padx=8)
+
+        ctk.CTkSwitch(actions, text="Loop", variable=self.loop_playback_var).pack(side="left", padx=8)
 
         ctk.CTkButton(actions, text="Salvar", height=38, command=self.save_current).pack(side="left", padx=8)
         ctk.CTkButton(
@@ -600,7 +603,7 @@ class MacroApp(ctk.CTk):
 
     def play_current(self):
         self.sync_events_from_engine()
-        self.engine.play_events(list(self.events))
+        self.engine.play_events(list(self.events), loop=self.loop_playback_var.get())
 
     def new_macro(self):
         self.current_file = None
