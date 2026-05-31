@@ -11,6 +11,7 @@ from .input_utils import key_from_data, key_label, key_to_data, key_to_shortcut,
 
 MATRIX_ROW_LIMIT = 3
 DEFAULT_MATRIX_STEP_DELAY = 0.3
+PLAYLIST_REPEAT_DELAY = 2.0
 
 
 class MacroEngine:
@@ -187,6 +188,11 @@ class MacroEngine:
                     self.ui_queue.put(("playlist_current", play_item["name"]))
                     self.notify(f"Playlist {repeat_index + 1}/{repeats}: {play_item['name']}")
                     self._run_timed_events(play_item["events"])
+                if repeat_index < repeats - 1:
+                    self.notify("Aguardando 2s para iniciar a proxima execucao da playlist...")
+                    if self.stop_playback_requested.wait(PLAYLIST_REPEAT_DELAY):
+                        finish_message = "Playlist interrompida."
+                        return
         except Exception as exc:
             finish_message = f"Erro na playlist: {exc}"
         finally:
@@ -404,8 +410,20 @@ def matrix_target_for_repeat(matrix, repeat_index):
 
 
 def build_matrix_navigation_events(target_row, target_column, step_delay=DEFAULT_MATRIX_STEP_DELAY):
+    return build_relative_matrix_navigation_events(1, 1, target_row, target_column, step_delay)
+
+
+def build_relative_matrix_navigation_events(
+    source_row,
+    source_column,
+    target_row,
+    target_column,
+    step_delay=DEFAULT_MATRIX_STEP_DELAY,
+):
     events = []
-    for index, direction in enumerate(matrix_navigation_steps(target_row, target_column)):
+    for index, direction in enumerate(
+        relative_matrix_navigation_steps(source_row, source_column, target_row, target_column)
+    ):
         events.append(
             {
                 "type": "key_hold",
@@ -418,9 +436,15 @@ def build_matrix_navigation_events(target_row, target_column, step_delay=DEFAULT
 
 
 def matrix_navigation_steps(target_row, target_column):
+    return relative_matrix_navigation_steps(1, 1, target_row, target_column)
+
+
+def relative_matrix_navigation_steps(source_row, source_column, target_row, target_column):
     steps = []
-    steps.extend(["right"] * max(0, target_column - 1))
-    steps.extend(["down"] * max(0, target_row - 1))
+    row_delta = target_row - source_row
+    column_delta = target_column - source_column
+    steps.extend((["down"] if row_delta > 0 else ["up"]) * abs(row_delta))
+    steps.extend((["right"] if column_delta > 0 else ["left"]) * abs(column_delta))
     return steps
 
 

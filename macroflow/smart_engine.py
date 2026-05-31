@@ -229,6 +229,6 @@ def arrow_key(direction):
 
 def grid_navigation_steps(target_row, target_column):
     steps = []
-    steps.extend(["right"] * max(0, target_column - 1))
     steps.extend(["down"] * max(0, target_row - 1))
+    steps.extend(["right"] * max(0, target_column - 1))
     return steps

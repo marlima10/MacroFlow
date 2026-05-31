@@ -21,7 +21,7 @@ from .constants import (
 )
 from .engine import DEFAULT_MATRIX_STEP_DELAY, MacroEngine, build_matrix_navigation_events
 from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
-from .smart_engine import SmartMacroEngine, grid_navigation_steps
+from .smart_engine import SmartMacroEngine
 from .timeline import render_timeline
 
 
