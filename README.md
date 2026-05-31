@@ -17,6 +17,10 @@ python macro_recorder.py
 
 ## Como usar
 
+- A tela inicial mostra os caminhos principais do app.
+- Clique em `Criar / Editar Macro` para abrir a tela atual de gravacao, edicao e reproducao.
+- Clique em `Executar Macro` para abrir a area reservada para a futura tela de execucao.
+- Clique em `Configuracoes` para alterar idioma, tema e preferencias iniciais do app.
 - Clique em `Gravar` ou pressione `F8` para iniciar.
 - A gravacao comeca depois da contagem `3, 2, 1`.
 - Faca os cliques e teclas da macro.
@@ -40,6 +44,8 @@ python macro_recorder.py
 Ao reproduzir, o programa executa imediatamente. Use `Loop` se quiser repetir ate pressionar `F10`.
 As macros ficam salvas na pasta `macros`.
 Os atalhos personalizados ficam salvos em `shortcuts.json`.
+As configuracoes gerais ficam em `config/app.json`.
+Os textos da interface ficam em `language/pt-br.json` e `language/en.json`.
 
 ## Macro inteligente
 

@@ -233,7 +233,7 @@ class MacroEngine:
             self.ui_queue.put(("play_shortcut", None))
             return True
         if shortcut == self.shortcuts["stop_playback"]:
-            self.stop_playback()
+            self.ui_queue.put(("stop_playback_shortcut", None))
             return True
         if shortcut == self.shortcuts["close"]:
             self.ui_queue.put(("escape", None))

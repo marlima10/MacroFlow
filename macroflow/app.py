@@ -8,7 +8,7 @@ from tkinter import messagebox, simpledialog, ttk
 import customtkinter as ctk
 from pynput import keyboard, mouse
 
-from .constants import DEFAULT_SHORTCUTS, MACROS_DIR, SHORTCUT_LABELS, SHORTCUTS_FILE
+from .constants import APP_CONFIG_FILE, APP_ICON_FILE, DEFAULT_SHORTCUTS, LANGUAGE_DIR, MACROS_DIR, SHORTCUT_LABELS, SHORTCUTS_FILE
 from .engine import MacroEngine
 from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
 from .smart_engine import SmartMacroEngine
@@ -17,13 +17,15 @@ from .timeline import render_timeline
 
 class MacroApp(ctk.CTk):
     def __init__(self):
-        ctk.set_appearance_mode("Dark")
+        self.app_config = self.load_app_config()
+        ctk.set_appearance_mode(self.app_config["theme"])
         ctk.set_default_color_theme("blue")
         super().__init__()
 
         self.title("MacroFlow")
         self.geometry("1100x680")
         self.minsize(940, 560)
+        self.set_window_icon()
 
         self.ui_queue = queue.Queue()
         self.shortcuts = self.load_shortcuts()
@@ -32,14 +34,27 @@ class MacroApp(ctk.CTk):
         self.current_file = None
         self.events = []
         self.macro_buttons = []
+        self.execute_macro_buttons = []
+        self.execute_macro_paths = []
+        self.execute_selected_path = None
+        self.execute_selected_events = []
         self.selected_macro_path = None
         self.pressed_inputs = set()
-        self.theme_var = tk.StringVar(value="Dark")
+        self.language = self.app_config["language"]
+        self.texts = self.load_language(self.language)
+        self.theme_var = tk.StringVar(value=self.app_config["theme"])
+        self.startup_var = tk.BooleanVar(value=self.app_config["start_with_windows"])
         self.loop_playback_var = tk.BooleanVar(value=False)
         self.cell_editor = None
         self.playback_blink_on = False
         self.playback_blink_active = False
         self.active_view = "conventional"
+        self.active_screen = "home"
+        self.execute_timer_running = False
+        self.execute_timer_started_at = 0.0
+        self.execute_countdown_active = False
+        self.execute_countdown_after_id = None
+        self.execute_countdown_step = 0
 
         self.create_widgets()
         self.apply_tree_style()
@@ -48,72 +63,646 @@ class MacroApp(ctk.CTk):
         self.after(100, self.process_queue)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
+    def load_app_config(self):
+        default_config = {"language": "pt-br", "theme": "Dark", "start_with_windows": False}
+        if not APP_CONFIG_FILE.exists():
+            APP_CONFIG_FILE.write_text(json.dumps(default_config, indent=2), encoding="utf-8")
+            return default_config
+        try:
+            saved_config = json.loads(APP_CONFIG_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            saved_config = {}
+        return {**default_config, **saved_config}
+
+    def save_app_config(self):
+        self.app_config.update(
+            {
+                "language": self.language,
+                "theme": self.theme_var.get(),
+                "start_with_windows": self.startup_var.get(),
+            }
+        )
+        APP_CONFIG_FILE.write_text(json.dumps(self.app_config, indent=2), encoding="utf-8")
+
+    def load_language(self, language):
+        language_file = LANGUAGE_DIR / f"{language}.json"
+        fallback_file = LANGUAGE_DIR / "pt-br.json"
+        try:
+            return json.loads(language_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return json.loads(fallback_file.read_text(encoding="utf-8"))
+
+    def t(self, key):
+        value = self.texts
+        for part in key.split("."):
+            if not isinstance(value, dict) or part not in value:
+                return key
+            value = value[part]
+        return value
+
+    def set_window_icon(self):
+        if not APP_ICON_FILE.exists():
+            return
+        try:
+            self.iconbitmap(str(APP_ICON_FILE))
+        except tk.TclError:
+            pass
+
     def create_widgets(self):
+        self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+        self.create_home_view()
+        self.create_execute_view()
+        self.create_settings_view()
         self.create_sidebar()
         self.create_main_area()
+        self.show_home()
+
+    def create_placeholder_view(self, name, title, description, accent):
+        view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
+        view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        view.grid_columnconfigure(0, weight=1)
+        view.grid_rowconfigure((0, 4), weight=1)
+
+        panel = ctk.CTkFrame(
+            view,
+            width=560,
+            height=300,
+            corner_radius=18,
+            fg_color=("#eef6ff", "#06111f"),
+            border_width=1,
+            border_color=accent,
+        )
+        panel.grid(row=1, column=0, padx=28, pady=(24, 16))
+        panel.grid_propagate(False)
+        panel.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(panel, text=title, font=ctk.CTkFont(size=28, weight="bold")).grid(
+            row=0, column=0, padx=34, pady=(42, 14)
+        )
+        ctk.CTkLabel(
+            panel,
+            text=description,
+            font=ctk.CTkFont(size=16),
+            text_color=("gray25", "gray78"),
+            wraplength=430,
+            justify="center",
+        ).grid(row=1, column=0, padx=34, pady=(0, 28))
+        ctk.CTkButton(
+            panel,
+            text="Voltar",
+            width=130,
+            height=42,
+            fg_color=accent,
+            hover_color=accent,
+            command=self.show_home,
+        ).grid(row=2, column=0, padx=34, pady=(0, 38))
+
+        view.grid_remove()
+        setattr(self, f"{name}_view", view)
+
+    def create_execute_view(self):
+        self.execute_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
+        self.execute_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.execute_view.grid_columnconfigure(0, weight=0)
+        self.execute_view.grid_columnconfigure(1, weight=1)
+        self.execute_view.grid_rowconfigure(1, weight=1)
+
+        header = ctk.CTkFrame(self.execute_view, fg_color="transparent")
+        header.grid(row=0, column=0, columnspan=2, padx=34, pady=(28, 18), sticky="ew")
+        header.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            header,
+            text="<",
+            width=42,
+            height=42,
+            corner_radius=21,
+            fg_color=("#e7edf5", "#152033"),
+            hover_color=("#d9e4f1", "#1c2b43"),
+            text_color=("gray10", "gray90"),
+            command=self.show_home,
+        ).grid(row=0, column=0, rowspan=2, padx=(0, 16), pady=4)
+        ctk.CTkLabel(header, text=self.t("execute.title"), font=ctk.CTkFont(size=28, weight="bold")).grid(
+            row=0, column=1, sticky="w"
+        )
+        ctk.CTkLabel(
+            header,
+            text=self.t("execute.description"),
+            font=ctk.CTkFont(size=14),
+            text_color=("gray35", "gray72"),
+        ).grid(row=1, column=1, sticky="w", pady=(2, 0))
+
+        list_card = self.create_execute_card(self.execute_view)
+        list_card.grid(row=1, column=0, padx=(34, 10), pady=(0, 24), sticky="nsew")
+        list_card.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            list_card,
+            text=self.t("execute.saved_macros"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
+        self.execute_macro_scroll = ctk.CTkScrollableFrame(list_card, fg_color="transparent")
+        self.execute_macro_scroll.grid(row=1, column=0, padx=14, pady=(0, 14), sticky="nsew")
+        self.execute_macro_scroll.grid_columnconfigure(0, weight=1)
+
+        content = ctk.CTkFrame(self.execute_view, fg_color="transparent")
+        content.grid(row=1, column=1, padx=(10, 34), pady=(0, 24), sticky="nsew")
+        content.grid_columnconfigure(0, weight=1)
+        content.grid_rowconfigure(2, weight=1)
+
+        controls = self.create_execute_card(content)
+        controls.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        controls.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            controls,
+            text=self.t("execute.controls"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, columnspan=4, padx=18, pady=(18, 10), sticky="w")
+
+        self.execute_play_button = ctk.CTkButton(
+            controls,
+            text=f"{shortcut_label(self.shortcuts['play'])}  {self.t('execute.play')}",
+            height=42,
+            command=self.play_execute_macro,
+        )
+        self.execute_play_button.grid(row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="ew")
+        self.execute_stop_button = ctk.CTkButton(
+            controls,
+            text=f"{shortcut_label(self.shortcuts['stop_playback'])}  {self.t('execute.stop')}",
+            height=42,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.stop_execute_playback,
+        )
+        self.execute_stop_button.grid(row=1, column=1, padx=8, pady=(0, 18), sticky="w")
+        self.execute_loop_var = tk.BooleanVar(value=False)
+        ctk.CTkSwitch(controls, text=self.t("execute.loop"), variable=self.execute_loop_var).grid(
+            row=1, column=2, padx=8, pady=(0, 18), sticky="w"
+        )
+        self.execute_status_label = ctk.CTkLabel(
+            controls,
+            text=self.t("execute.none"),
+            text_color=("gray35", "gray72"),
+        )
+        self.execute_status_label.grid(row=1, column=3, padx=(8, 18), pady=(0, 18), sticky="e")
+
+        timer_card = self.create_execute_card(content)
+        timer_card.grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        timer_card.grid_columnconfigure(2, weight=1)
+        ctk.CTkLabel(
+            timer_card,
+            text=self.t("execute.elapsed_time"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=18, pady=18, sticky="w")
+        lights = ctk.CTkFrame(timer_card, fg_color="transparent")
+        lights.grid(row=0, column=1, padx=(0, 16), pady=18, sticky="w")
+        self.execute_lights = []
+        for column in range(3):
+            light = ctk.CTkFrame(lights, width=28, height=28, corner_radius=14, fg_color="#4b5563")
+            light.grid(row=0, column=column, padx=4)
+            light.grid_propagate(False)
+            self.execute_lights.append(light)
+        self.execute_elapsed_var = tk.StringVar(value="00:00:00")
+        ctk.CTkLabel(
+            timer_card,
+            textvariable=self.execute_elapsed_var,
+            font=ctk.CTkFont(size=30, weight="bold"),
+            text_color="#62df45",
+        ).grid(row=0, column=2, padx=18, pady=18, sticky="e")
+
+        preview = self.create_execute_card(content)
+        preview.grid(row=2, column=0, sticky="nsew")
+        preview.grid_columnconfigure(0, weight=1)
+        preview.grid_rowconfigure(2, weight=1)
+        ctk.CTkLabel(
+            preview,
+            text=self.t("execute.selected_macro"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=18, pady=(18, 4), sticky="w")
+        self.execute_summary_var = tk.StringVar(value=self.t("execute.select_hint"))
+        ctk.CTkLabel(preview, textvariable=self.execute_summary_var, text_color=("gray35", "gray72")).grid(
+            row=1, column=0, padx=18, pady=(0, 12), sticky="w"
+        )
+        timeline_frame = ctk.CTkFrame(preview, corner_radius=8)
+        timeline_frame.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="nsew")
+        timeline_frame.grid_columnconfigure(0, weight=1)
+        timeline_frame.grid_rowconfigure(0, weight=1)
+        self.execute_timeline_canvas = tk.Canvas(timeline_frame, height=150, highlightthickness=0, bd=0)
+        self.execute_timeline_canvas.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        self.execute_view.grid_remove()
+        self.refresh_execute_macro_list()
+
+    def create_execute_card(self, parent):
+        return ctk.CTkFrame(
+            parent,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
+
+    def create_settings_view(self):
+        self.settings_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
+        self.settings_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.settings_view.grid_columnconfigure(0, weight=1)
+        self.settings_view.grid_rowconfigure(5, weight=1)
+
+        header = ctk.CTkFrame(self.settings_view, fg_color="transparent")
+        header.grid(row=0, column=0, padx=34, pady=(28, 18), sticky="ew")
+        header.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            header,
+            text="<",
+            width=42,
+            height=42,
+            corner_radius=21,
+            fg_color=("#e7edf5", "#152033"),
+            hover_color=("#d9e4f1", "#1c2b43"),
+            text_color=("gray10", "gray90"),
+            command=self.show_home,
+        ).grid(row=0, column=0, rowspan=2, padx=(0, 16), pady=4)
+        ctk.CTkLabel(header, text=self.t("settings.title"), font=ctk.CTkFont(size=28, weight="bold")).grid(
+            row=0, column=1, sticky="w"
+        )
+        ctk.CTkLabel(
+            header,
+            text=self.t("settings.subtitle"),
+            font=ctk.CTkFont(size=14),
+            text_color=("gray35", "gray72"),
+        ).grid(row=1, column=1, sticky="w", pady=(2, 0))
+
+        self.create_language_settings_card()
+        self.create_theme_settings_card()
+        self.create_startup_settings_card()
+        self.create_about_settings_card()
+        self.create_settings_footer()
+        self.settings_view.grid_remove()
+
+    def create_settings_section(self, row, title, description, accent, icon_text):
+        section = ctk.CTkFrame(
+            self.settings_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
+        section.grid(row=row, column=0, padx=68, pady=(0, 8), sticky="ew")
+        section.grid_columnconfigure(2, weight=1)
+
+        ctk.CTkLabel(
+            section,
+            text=icon_text,
+            width=32,
+            height=32,
+            corner_radius=16,
+            fg_color=accent,
+            text_color="#ffffff",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, rowspan=2, padx=(18, 14), pady=18)
+        ctk.CTkLabel(section, text=title, font=ctk.CTkFont(size=15, weight="bold")).grid(
+            row=0, column=1, sticky="sw", pady=(18, 0)
+        )
+        ctk.CTkLabel(section, text=description, text_color=("gray35", "gray72")).grid(
+            row=1, column=1, sticky="nw", pady=(0, 18)
+        )
+        return section
+
+    def create_language_settings_card(self):
+        section = self.create_settings_section(
+            1, self.t("settings.language_title"), self.t("settings.language_description"), "#1877d8", "G"
+        )
+        options = ctk.CTkFrame(section, fg_color="transparent")
+        options.grid(row=2, column=1, columnspan=2, padx=(0, 50), pady=(0, 18), sticky="ew")
+        options.grid_columnconfigure(0, weight=1)
+        self.create_language_option(options, 0, "pt-br", "BR", self.t("settings.pt_br"), self.t("settings.pt_br_note"))
+        self.create_language_option(options, 1, "en", "EN", self.t("settings.en"), self.t("settings.en_note"))
+
+    def create_language_option(self, parent, row, language, flag, title, note):
+        selected = self.language == language
+        option = ctk.CTkFrame(
+            parent,
+            height=48,
+            corner_radius=7,
+            fg_color=("#e8f2ff", "#0b1628") if selected else ("#f8fbff", "#07111f"),
+            border_width=1,
+            border_color="#168bff" if selected else ("#cfd9e6", "#1a2b42"),
+        )
+        option.grid(row=row, column=0, sticky="ew", pady=(0, 8))
+        option.grid_propagate(False)
+        option.grid_columnconfigure(2, weight=1)
+        click_action = lambda _event: self.change_language(language)
+        option.bind("<Button-1>", click_action)
+
+        radio = ctk.CTkLabel(
+            option,
+            text="*" if selected else "o",
+            text_color="#168bff" if selected else ("gray45", "gray60"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        )
+        radio.grid(row=0, column=0, padx=(18, 12), pady=9)
+        flag_label = ctk.CTkLabel(option, text=flag, font=ctk.CTkFont(size=18, weight="bold"))
+        flag_label.grid(row=0, column=1, padx=(0, 14), pady=9)
+        language_label = ctk.CTkLabel(
+            option,
+            text=f"{title} - {note}",
+            font=ctk.CTkFont(size=14),
+            text_color="#168bff" if selected else ("gray20", "gray82"),
+        )
+        language_label.grid(row=0, column=2, sticky="w", pady=9)
+        for widget in (radio, flag_label, language_label):
+            widget.bind("<Button-1>", click_action)
+
+    def create_theme_settings_card(self):
+        section = self.create_settings_section(
+            2, self.t("settings.theme_title"), self.t("settings.theme_description"), "#5842a6", "T"
+        )
+        values = [self.t("settings.theme_dark"), self.t("settings.theme_light")]
+        current_value = self.t("settings.theme_dark") if self.theme_var.get() == "Dark" else self.t("settings.theme_light")
+        self.theme_menu = ctk.CTkOptionMenu(
+            section,
+            values=values,
+            variable=tk.StringVar(value=current_value),
+            command=self.change_theme_from_settings,
+        )
+        self.theme_menu.grid(row=0, column=3, rowspan=2, padx=(18, 18), pady=18, sticky="e")
+
+    def create_startup_settings_card(self):
+        section = self.create_settings_section(
+            3, self.t("settings.startup_title"), self.t("settings.startup_description"), "#16a34a", "P"
+        )
+        ctk.CTkSwitch(
+            section,
+            text=self.t("settings.startup_windows"),
+            variable=self.startup_var,
+            command=self.save_app_config,
+        ).grid(row=0, column=3, rowspan=2, padx=(18, 18), pady=18, sticky="e")
+
+    def create_about_settings_card(self):
+        section = self.create_settings_section(
+            4, self.t("settings.about_title"), self.t("settings.about_description"), "#1877d8", "i"
+        )
+        ctk.CTkLabel(section, text=">", font=ctk.CTkFont(size=22), text_color=("gray35", "gray72")).grid(
+            row=0, column=3, rowspan=2, padx=(18, 28), pady=18
+        )
+
+    def create_settings_footer(self):
+        footer = ctk.CTkFrame(self.settings_view, corner_radius=10, fg_color=("#eef3f8", "#07111f"))
+        footer.grid(row=5, column=0, padx=68, pady=(8, 18), sticky="sew")
+        footer.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            footer,
+            text=f"</>  {self.t('app.developer')}",
+            font=ctk.CTkFont(size=14),
+            text_color=("#1b6fb8", "#4aa7ff"),
+        ).grid(row=0, column=0, padx=24, pady=16)
+
+    def hide_root_views(self):
+        for view_name in ("home_view", "execute_view", "settings_view", "sidebar", "main"):
+            view = getattr(self, view_name, None)
+            if view is not None:
+                view.grid_remove()
+
+    def show_home(self):
+        self.hide_root_views()
+        self.active_screen = "home"
+        self.grid_columnconfigure(0, weight=1)
+        self.home_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.home_view.tkraise()
+
+    def show_placeholder(self, name):
+        self.hide_root_views()
+        self.active_screen = name
+        self.grid_columnconfigure(0, weight=1)
+        view = getattr(self, f"{name}_view")
+        view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        view.tkraise()
+
+    def show_app_shell(self, view="conventional"):
+        self.hide_root_views()
+        self.active_screen = "macro_editor"
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
+        self.configure(fg_color="#020812")
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.main.grid(row=0, column=1, sticky="nsew", padx=18, pady=18)
+        self.show_view(view)
+        self.main.tkraise()
+
+    def open_macro_editor(self):
+        self.show_app_shell("conventional")
+
+    def open_execute_screen(self):
+        self.refresh_execute_macro_list()
+        self.show_placeholder("execute")
+
+    def open_settings_screen(self):
+        self.show_placeholder("settings")
+
+    def change_language(self, language):
+        if self.language == language:
+            return
+        self.language = language
+        self.texts = self.load_language(language)
+        self.save_app_config()
+        self.rebuild_home_and_settings()
+        self.show_placeholder("settings")
+
+    def change_theme_from_settings(self, selected_theme):
+        dark_label = self.t("settings.theme_dark")
+        self.theme_var.set("Dark" if selected_theme == dark_label else "Light")
+        self.change_theme()
+        self.save_app_config()
+
+    def rebuild_home_and_settings(self):
+        for view_name in ("home_view", "execute_view", "settings_view"):
+            view = getattr(self, view_name, None)
+            if view is not None:
+                view.destroy()
+        self.create_home_view()
+        self.create_execute_view()
+        self.create_settings_view()
+
+    def create_home_view(self):
+        self.home_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
+        self.home_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.home_view.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        self.home_view.grid_rowconfigure(0, weight=1)
+        self.home_view.grid_rowconfigure(5, weight=1)
+
+        ctk.CTkLabel(
+            self.home_view,
+            text=self.t("home.title"),
+            font=ctk.CTkFont(size=32, weight="bold"),
+        ).grid(row=1, column=0, columnspan=4, padx=24, pady=(24, 8))
+        ctk.CTkLabel(
+            self.home_view,
+            text=self.t("home.subtitle"),
+            font=ctk.CTkFont(size=16),
+            text_color=("gray30", "gray78"),
+        ).grid(row=2, column=0, columnspan=4, padx=24, pady=(0, 36))
+
+        self.create_home_card(
+            column=1,
+            title=self.t("home.create_title"),
+            description=self.t("home.create_description"),
+            icon="[=]",
+            accent="#168bff",
+            command=self.open_macro_editor,
+        )
+        self.create_home_card(
+            column=2,
+            title=self.t("home.execute_title"),
+            description=self.t("home.execute_description"),
+            icon=">",
+            accent="#62df45",
+            command=self.open_execute_screen,
+        )
+
+        footer = ctk.CTkFrame(self.home_view, corner_radius=10, fg_color=("#eef3f8", "#07111f"))
+        footer.grid(row=4, column=1, columnspan=2, padx=24, pady=(58, 0), sticky="ew")
+        footer.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            footer,
+            text=f"</>  {self.t('app.developer')}",
+            font=ctk.CTkFont(size=15),
+            text_color=("#1b6fb8", "#4aa7ff"),
+        ).grid(row=0, column=0, padx=24, pady=18)
+
+        ctk.CTkButton(
+            self.home_view,
+            text=self.t("home.settings"),
+            height=46,
+            fg_color=("#eef3f8", "#07111f"),
+            hover_color=("#dfe9f4", "#0d1b2e"),
+            text_color=("gray10", "gray90"),
+            border_width=1,
+            border_color=("#d3dbe5", "#1d2a3d"),
+            command=self.open_settings_screen,
+        ).grid(row=4, column=3, padx=(0, 34), pady=(58, 0), sticky="w")
+
+    def create_home_card(self, column, title, description, icon, accent, command):
+        card = ctk.CTkFrame(
+            self.home_view,
+            width=320,
+            height=360,
+            corner_radius=22,
+            fg_color=("#eef6ff", "#031123"),
+            border_width=2,
+            border_color=accent,
+        )
+        card.grid(row=3, column=column, padx=20, pady=0, sticky="nsew")
+        card.grid_propagate(False)
+        card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(card, text=icon, font=ctk.CTkFont(size=72, weight="bold"), text_color=accent).grid(
+            row=0, column=0, padx=24, pady=(44, 22)
+        )
+        ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=22, weight="bold")).grid(
+            row=1, column=0, padx=28, pady=(0, 14)
+        )
+        ctk.CTkLabel(
+            card,
+            text=description,
+            font=ctk.CTkFont(size=15),
+            text_color=("gray25", "gray78"),
+            wraplength=250,
+            justify="center",
+        ).grid(row=2, column=0, padx=28, pady=(0, 30))
+        ctk.CTkButton(
+            card,
+            text=">",
+            width=58,
+            height=58,
+            corner_radius=29,
+            fg_color=accent,
+            hover_color=accent,
+            font=ctk.CTkFont(size=28, weight="bold"),
+            command=command,
+        ).grid(row=3, column=0, pady=(0, 32))
 
     def create_sidebar(self):
-        self.sidebar = ctk.CTkFrame(self, width=230, corner_radius=0)
+        self.sidebar = ctk.CTkFrame(
+            self,
+            width=230,
+            corner_radius=0,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(4, weight=1)
+        self.sidebar.grid_rowconfigure(5, weight=1)
+
+        ctk.CTkButton(
+            self.sidebar,
+            text=f"<  {self.t('settings.back')}",
+            height=36,
+            fg_color=("#e7edf5", "#152033"),
+            hover_color=("#d9e4f1", "#1c2b43"),
+            text_color=("gray10", "gray90"),
+            command=self.show_home,
+        ).grid(row=0, column=0, padx=22, pady=(24, 10), sticky="ew")
 
         ctk.CTkLabel(
             self.sidebar,
             text="MacroFlow",
             font=ctk.CTkFont(size=22, weight="bold"),
-        ).grid(row=0, column=0, padx=22, pady=(24, 16), sticky="w")
+        ).grid(row=1, column=0, padx=22, pady=(0, 16), sticky="w")
 
         self.conventional_nav_button = ctk.CTkButton(
             self.sidebar,
-            text="Macro convencional",
+            text=self.t("macro.conventional"),
             height=38,
             command=lambda: self.show_view("conventional"),
         )
-        self.conventional_nav_button.grid(row=1, column=0, padx=22, pady=(0, 8), sticky="ew")
+        self.conventional_nav_button.grid(row=2, column=0, padx=22, pady=(0, 8), sticky="ew")
 
         self.smart_nav_button = ctk.CTkButton(
             self.sidebar,
-            text="Macro inteligente",
+            text=self.t("macro.smart"),
             height=38,
             fg_color="#5c5f66",
             hover_color="#4d5056",
             command=lambda: self.show_view("smart"),
         )
-        self.smart_nav_button.grid(row=2, column=0, padx=22, pady=(0, 12), sticky="ew")
+        self.smart_nav_button.grid(row=3, column=0, padx=22, pady=(0, 12), sticky="ew")
 
-        ctk.CTkButton(self.sidebar, text="Nova macro", height=38, command=self.new_macro).grid(
-            row=3, column=0, padx=22, pady=(0, 12), sticky="ew"
+        ctk.CTkButton(self.sidebar, text=self.t("macro.new"), height=38, command=self.new_macro).grid(
+            row=4, column=0, padx=22, pady=(0, 12), sticky="ew"
         )
 
-        self.macro_scroll = ctk.CTkScrollableFrame(self.sidebar, label_text="Macros salvas")
-        self.macro_scroll.grid(row=4, column=0, padx=16, pady=(0, 16), sticky="nsew")
+        self.macro_scroll = ctk.CTkScrollableFrame(self.sidebar, label_text=self.t("macro.saved"))
+        self.macro_scroll.grid(row=5, column=0, padx=16, pady=(0, 16), sticky="nsew")
 
         self.theme_switch = ctk.CTkSwitch(
             self.sidebar,
-            text="Modo escuro",
+            text=self.t("macro.dark_mode"),
             variable=self.theme_var,
             onvalue="Dark",
             offvalue="Light",
             command=self.change_theme,
         )
         self.theme_switch.select()
-        self.theme_switch.grid(row=5, column=0, padx=22, pady=(0, 18), sticky="w")
+        self.theme_switch.grid(row=6, column=0, padx=22, pady=(0, 18), sticky="w")
 
     def create_main_area(self):
         self.main = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.main.grid(row=0, column=1, sticky="nsew", padx=18, pady=18)
         self.main.grid_columnconfigure(0, weight=1)
-        self.main.grid_rowconfigure(0, weight=1)
+        self.main.grid_rowconfigure(1, weight=1)
+
+        self.create_macro_shell_header()
 
         self.conventional_view = ctk.CTkFrame(self.main, fg_color="transparent")
-        self.conventional_view.grid(row=0, column=0, sticky="nsew")
+        self.conventional_view.grid(row=1, column=0, sticky="nsew")
         self.conventional_view.grid_columnconfigure(0, weight=1)
         self.conventional_view.grid_rowconfigure(2, weight=1)
 
         self.smart_view = ctk.CTkFrame(self.main, fg_color="transparent")
-        self.smart_view.grid(row=0, column=0, sticky="nsew")
+        self.smart_view.grid(row=1, column=0, sticky="nsew")
         self.smart_view.grid_columnconfigure(0, weight=1)
         self.smart_view.grid_rowconfigure(2, weight=1)
 
@@ -124,12 +713,48 @@ class MacroApp(ctk.CTk):
         self.create_smart_view()
         self.show_view("conventional")
 
+    def create_macro_shell_header(self):
+        header = ctk.CTkFrame(self.main, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 16))
+        header.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            header,
+            text="<",
+            width=42,
+            height=42,
+            corner_radius=21,
+            fg_color=("#e7edf5", "#152033"),
+            hover_color=("#d9e4f1", "#1c2b43"),
+            text_color=("gray10", "gray90"),
+            command=self.show_home,
+        ).grid(row=0, column=0, rowspan=2, padx=(0, 16), pady=4)
+        self.macro_page_title = ctk.CTkLabel(
+            header,
+            text=self.t("macro.page_title"),
+            font=ctk.CTkFont(size=28, weight="bold"),
+        )
+        self.macro_page_title.grid(row=0, column=1, sticky="w")
+        self.macro_page_subtitle = ctk.CTkLabel(
+            header,
+            text=self.t("macro.page_subtitle"),
+            font=ctk.CTkFont(size=14),
+            text_color=("gray35", "gray72"),
+        )
+        self.macro_page_subtitle.grid(row=1, column=1, sticky="w", pady=(2, 0))
+
     def create_header(self):
-        header = ctk.CTkFrame(self.conventional_view, corner_radius=10)
+        header = ctk.CTkFrame(
+            self.conventional_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         header.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(header, text="Nome da macro", font=ctk.CTkFont(size=14, weight="bold")).grid(
+        ctk.CTkLabel(header, text=self.t("macro.macro_name"), font=ctk.CTkFont(size=14, weight="bold")).grid(
             row=0, column=0, padx=18, pady=(16, 6), sticky="w"
         )
         self.name_var = tk.StringVar()
@@ -137,7 +762,7 @@ class MacroApp(ctk.CTk):
             header,
             textvariable=self.name_var,
             height=40,
-            placeholder_text="Ex: abrir sistema e preencher relatorio",
+            placeholder_text=self.t("macro.name_placeholder"),
         )
         self.name_entry.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="ew")
 
@@ -146,7 +771,7 @@ class MacroApp(ctk.CTk):
 
         self.record_button = ctk.CTkButton(
             actions,
-            text="Gravar",
+            text=self.t("macro.record"),
             height=38,
             fg_color="#d63d3d",
             hover_color="#b83232",
@@ -154,15 +779,15 @@ class MacroApp(ctk.CTk):
         )
         self.record_button.pack(side="left", padx=(0, 8))
 
-        self.play_button = ctk.CTkButton(actions, text="Reproduzir", height=38, command=self.play_current)
+        self.play_button = ctk.CTkButton(actions, text=self.t("macro.play"), height=38, command=self.play_current)
         self.play_button.pack(side="left", padx=8)
 
-        ctk.CTkSwitch(actions, text="Loop", variable=self.loop_playback_var).pack(side="left", padx=8)
+        ctk.CTkSwitch(actions, text=self.t("macro.loop"), variable=self.loop_playback_var).pack(side="left", padx=8)
 
-        ctk.CTkButton(actions, text="Salvar", height=38, command=self.save_current).pack(side="left", padx=8)
+        ctk.CTkButton(actions, text=self.t("macro.save"), height=38, command=self.save_current).pack(side="left", padx=8)
         ctk.CTkButton(
             actions,
-            text="Limpar",
+            text=self.t("macro.clear"),
             height=38,
             fg_color="#5c5f66",
             hover_color="#4d5056",
@@ -170,7 +795,7 @@ class MacroApp(ctk.CTk):
         ).pack(side="left", padx=8)
         ctk.CTkButton(
             actions,
-            text="Excluir",
+            text=self.t("macro.delete"),
             height=38,
             fg_color="#5c5f66",
             hover_color="#4d5056",
@@ -178,11 +803,17 @@ class MacroApp(ctk.CTk):
         ).pack(side="left", padx=8)
 
     def create_status_card(self):
-        status_card = ctk.CTkFrame(self.conventional_view, corner_radius=10)
+        status_card = ctk.CTkFrame(
+            self.conventional_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         status_card.grid(row=1, column=0, sticky="ew", pady=(0, 14))
         status_card.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(status_card, text="Atalhos", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(status_card, text=self.t("macro.shortcuts"), font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, padx=(18, 12), pady=(14, 6), sticky="w"
         )
         self.shortcuts_frame = ctk.CTkFrame(status_card, fg_color="transparent")
@@ -191,7 +822,7 @@ class MacroApp(ctk.CTk):
 
         ctk.CTkButton(
             status_card,
-            text="Editar atalhos",
+            text=self.t("macro.edit_shortcuts"),
             width=120,
             height=30,
             fg_color="#5c5f66",
@@ -201,14 +832,14 @@ class MacroApp(ctk.CTk):
 
         self.playback_alert = ctk.CTkLabel(
             status_card,
-            text="* Reproduzindo",
+            text=self.t("macro.playing"),
             text_color="#22c55e",
             font=ctk.CTkFont(weight="bold"),
         )
         self.playback_alert.grid(row=0, column=3, padx=(8, 8), pady=(14, 4), sticky="e")
         self.playback_alert.grid_remove()
 
-        self.status_var = tk.StringVar(value="Pronto para gravar.")
+        self.status_var = tk.StringVar(value=self.t("macro.ready"))
         ctk.CTkLabel(status_card, textvariable=self.status_var, anchor="e").grid(
             row=0, column=4, padx=(8, 18), pady=(14, 4), sticky="e"
         )
@@ -223,11 +854,11 @@ class MacroApp(ctk.CTk):
         self.countdown_label.grid(row=1, column=0, columnspan=5, padx=18, pady=(4, 2), sticky="w")
         self.countdown_label.grid_remove()
 
-        ctk.CTkLabel(status_card, text="Ao vivo", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(status_card, text=self.t("macro.live"), font=ctk.CTkFont(weight="bold")).grid(
             row=2, column=0, padx=(18, 12), pady=(4, 14), sticky="w"
         )
-        self.live_inputs_var = tk.StringVar(value="Nada pressionado")
-        self.live_action_var = tk.StringVar(value="Aguardando gravacao")
+        self.live_inputs_var = tk.StringVar(value=self.t("macro.nothing_pressed"))
+        self.live_action_var = tk.StringVar(value=self.t("macro.waiting_recording"))
         ctk.CTkLabel(status_card, textvariable=self.live_inputs_var).grid(
             row=2, column=1, padx=0, pady=(4, 14), sticky="w"
         )
@@ -236,14 +867,20 @@ class MacroApp(ctk.CTk):
         )
 
     def create_events_card(self):
-        table_card = ctk.CTkFrame(self.conventional_view, corner_radius=10)
+        table_card = ctk.CTkFrame(
+            self.conventional_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         table_card.grid(row=2, column=0, sticky="nsew")
         table_card.grid_columnconfigure(0, weight=1)
         table_card.grid_rowconfigure(2, weight=1)
 
         ctk.CTkLabel(
             table_card,
-            text="Eventos da macro",
+            text=self.t("macro.events"),
             font=ctk.CTkFont(size=16, weight="bold"),
         ).grid(row=0, column=0, sticky="w", padx=18, pady=(16, 8))
 
@@ -264,9 +901,9 @@ class MacroApp(ctk.CTk):
     def create_events_table(self, parent):
         columns = ("t", "type", "details")
         self.table = ttk.Treeview(parent, columns=columns, show="headings", selectmode="browse")
-        self.table.heading("t", text="Tempo")
-        self.table.heading("type", text="Tipo")
-        self.table.heading("details", text="Dados")
+        self.table.heading("t", text=self.t("macro.time"))
+        self.table.heading("type", text=self.t("macro.type"))
+        self.table.heading("details", text=self.t("macro.details"))
         self.table.column("t", width=90, stretch=False)
         self.table.column("type", width=130, stretch=False)
         self.table.column("details", width=640)
@@ -279,7 +916,13 @@ class MacroApp(ctk.CTk):
         self.table.configure(yscrollcommand=scrollbar.set)
 
     def create_editor(self):
-        editor = ctk.CTkFrame(self.conventional_view, corner_radius=10)
+        editor = ctk.CTkFrame(
+            self.conventional_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         editor.grid(row=3, column=0, sticky="ew", pady=(14, 0))
         editor.grid_columnconfigure(5, weight=1)
 
@@ -287,16 +930,16 @@ class MacroApp(ctk.CTk):
         self.event_type = tk.StringVar()
         self.event_data = tk.StringVar()
 
-        ctk.CTkLabel(editor, text="Tempo").grid(row=0, column=0, padx=(18, 6), pady=16)
+        ctk.CTkLabel(editor, text=self.t("macro.time")).grid(row=0, column=0, padx=(18, 6), pady=16)
         ctk.CTkEntry(editor, width=90, textvariable=self.event_time).grid(row=0, column=1, pady=16)
-        ctk.CTkLabel(editor, text="Tipo").grid(row=0, column=2, padx=(12, 6), pady=16)
+        ctk.CTkLabel(editor, text=self.t("macro.type")).grid(row=0, column=2, padx=(12, 6), pady=16)
         ctk.CTkEntry(editor, width=130, textvariable=self.event_type).grid(row=0, column=3, pady=16)
-        ctk.CTkLabel(editor, text="Dados JSON").grid(row=0, column=4, padx=(12, 6), pady=16)
+        ctk.CTkLabel(editor, text=self.t("macro.json_data")).grid(row=0, column=4, padx=(12, 6), pady=16)
         ctk.CTkEntry(editor, textvariable=self.event_data).grid(row=0, column=5, padx=(0, 10), pady=16, sticky="ew")
-        ctk.CTkButton(editor, text="Aplicar", width=92, command=self.apply_event_edit).grid(row=0, column=6, padx=4, pady=16)
+        ctk.CTkButton(editor, text=self.t("macro.apply"), width=92, command=self.apply_event_edit).grid(row=0, column=6, padx=4, pady=16)
         ctk.CTkButton(
             editor,
-            text="Remover",
+            text=self.t("macro.remove"),
             width=92,
             fg_color="#5c5f66",
             hover_color="#4d5056",
@@ -304,66 +947,84 @@ class MacroApp(ctk.CTk):
         ).grid(row=0, column=7, padx=(4, 18), pady=16)
 
     def create_smart_view(self):
-        header = ctk.CTkFrame(self.smart_view, corner_radius=10)
+        header = ctk.CTkFrame(
+            self.smart_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         header.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
             header,
-            text="Macro inteligente",
+            text=self.t("smart.title"),
             font=ctk.CTkFont(size=22, weight="bold"),
         ).grid(row=0, column=0, columnspan=4, padx=18, pady=(18, 8), sticky="w")
 
-        ctk.CTkLabel(header, text="Alvo visual").grid(row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="w")
+        ctk.CTkLabel(header, text=self.t("smart.target")).grid(row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="w")
         self.smart_target_var = tk.StringVar(value="IMPREZA 22B")
         ctk.CTkEntry(
             header,
             textvariable=self.smart_target_var,
-            placeholder_text="Ex: IMPREZA 22B",
+            placeholder_text=self.t("smart.target_placeholder"),
             height=38,
         ).grid(row=1, column=1, padx=(0, 8), pady=(0, 18), sticky="ew")
 
-        ctk.CTkButton(header, text="Escanear tela", height=38, command=self.scan_smart_target).grid(
+        ctk.CTkButton(header, text=self.t("smart.scan"), height=38, command=self.scan_smart_target).grid(
             row=1, column=2, padx=6, pady=(0, 18)
         )
-        ctk.CTkButton(header, text="Executar busca", height=38, command=self.run_smart_navigation).grid(
+        ctk.CTkButton(header, text=self.t("smart.run"), height=38, command=self.run_smart_navigation).grid(
             row=1, column=3, padx=6, pady=(0, 18)
         )
         ctk.CTkButton(
             header,
-            text="Parar",
+            text=self.t("smart.stop"),
             height=38,
             fg_color="#5c5f66",
             hover_color="#4d5056",
             command=self.smart_engine.stop_navigation,
         ).grid(row=1, column=4, padx=(6, 18), pady=(0, 18))
 
-        settings = ctk.CTkFrame(self.smart_view, corner_radius=10)
+        settings = ctk.CTkFrame(
+            self.smart_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         settings.grid(row=1, column=0, sticky="ew", pady=(0, 14))
         settings.grid_columnconfigure(3, weight=1)
 
         self.smart_max_steps_var = tk.StringVar(value="30")
         self.smart_delay_var = tk.StringVar(value="0.35")
-        ctk.CTkLabel(settings, text="Passos max.").grid(row=0, column=0, padx=(18, 8), pady=16)
+        ctk.CTkLabel(settings, text=self.t("smart.max_steps")).grid(row=0, column=0, padx=(18, 8), pady=16)
         ctk.CTkEntry(settings, width=70, textvariable=self.smart_max_steps_var).grid(row=0, column=1, pady=16)
-        ctk.CTkLabel(settings, text="Intervalo").grid(row=0, column=2, padx=(18, 8), pady=16)
+        ctk.CTkLabel(settings, text=self.t("smart.delay")).grid(row=0, column=2, padx=(18, 8), pady=16)
         ctk.CTkEntry(settings, width=70, textvariable=self.smart_delay_var).grid(row=0, column=3, pady=16, sticky="w")
         ctk.CTkButton(
             settings,
-            text="Verificar dependencias",
+            text=self.t("smart.dependencies"),
             fg_color="#5c5f66",
             hover_color="#4d5056",
             command=self.show_smart_dependencies,
         ).grid(row=0, column=4, padx=(12, 18), pady=16)
 
-        panel = ctk.CTkFrame(self.smart_view, corner_radius=10)
+        panel = ctk.CTkFrame(
+            self.smart_view,
+            corner_radius=10,
+            fg_color=("#eef6ff", "#07111f"),
+            border_width=1,
+            border_color=("#d8e0ea", "#132034"),
+        )
         panel.grid(row=2, column=0, sticky="nsew")
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(
             panel,
-            text="Leitura da tela",
+            text=self.t("smart.screen_reading"),
             font=ctk.CTkFont(size=16, weight="bold"),
         ).grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
 
@@ -442,6 +1103,8 @@ class MacroApp(ctk.CTk):
         self.configure(fg_color=bg)
         if hasattr(self, "timeline_canvas"):
             self.render_timeline()
+        if hasattr(self, "execute_timeline_canvas"):
+            self.render_execute_timeline()
 
     def start_listeners(self):
         self.mouse_listener = mouse.Listener(
@@ -488,9 +1151,23 @@ class MacroApp(ctk.CTk):
             self.live_action_var.set(payload)
         elif action == "playing":
             self.play_button.configure(state="disabled" if payload else "normal")
+            if hasattr(self, "execute_play_button"):
+                self.execute_play_button.configure(state="disabled" if payload else "normal")
+                if payload:
+                    self.start_execute_timer()
+                else:
+                    self.stop_execute_timer()
             self.set_playback_alert(payload)
         elif action == "play_shortcut":
-            self.play_current()
+            if self.active_screen == "execute":
+                self.play_execute_macro()
+            else:
+                self.play_current()
+        elif action == "stop_playback_shortcut":
+            if self.active_screen == "execute":
+                self.stop_execute_playback()
+            else:
+                self.engine.stop_playback()
         elif action == "escape":
             self.handle_close_shortcut()
 
@@ -506,15 +1183,15 @@ class MacroApp(ctk.CTk):
         self.pressed_inputs.clear()
         self.countdown_label.grid_remove()
         self.countdown_var.set("")
-        self.live_inputs_var.set("Nada pressionado")
+        self.live_inputs_var.set(self.t("macro.nothing_pressed"))
         self.live_action_var.set("Gravando agora")
-        self.record_button.configure(text="Parar", fg_color="#ef8a2f", hover_color="#c96f24")
+        self.record_button.configure(text=self.t("macro.stop"), fg_color="#ef8a2f", hover_color="#c96f24")
 
     def on_recording_countdown(self, remaining):
         self.events = []
         self.render_events()
         self.pressed_inputs.clear()
-        self.live_inputs_var.set("Nada pressionado")
+        self.live_inputs_var.set(self.t("macro.nothing_pressed"))
         self.countdown_var.set(f"Gravacao comeca em {remaining}")
         self.countdown_label.grid()
         self.live_action_var.set("Preparando gravacao")
@@ -524,13 +1201,14 @@ class MacroApp(ctk.CTk):
         self.pressed_inputs.clear()
         self.countdown_label.grid_remove()
         self.countdown_var.set("")
-        self.live_inputs_var.set("Nada pressionado")
+        self.live_inputs_var.set(self.t("macro.nothing_pressed"))
         self.live_action_var.set("Gravacao encerrada")
         self.set_record_button_idle()
 
     def change_theme(self):
         ctk.set_appearance_mode(self.theme_var.get())
         self.apply_tree_style()
+        self.save_app_config()
 
     def render_shortcut_pills(self):
         for child in self.shortcuts_frame.winfo_children():
@@ -620,8 +1298,89 @@ class MacroApp(ctk.CTk):
         self.playback_blink_on = not self.playback_blink_on
         self.after(420, self.blink_playback_alert)
 
+    def start_execute_timer(self):
+        self.execute_timer_running = True
+        self.execute_timer_started_at = time.perf_counter()
+        if hasattr(self, "execute_elapsed_var"):
+            self.execute_elapsed_var.set("00:00:00")
+        self.update_execute_timer()
+
+    def stop_execute_timer(self):
+        self.execute_timer_running = False
+        if hasattr(self, "execute_elapsed_var"):
+            self.execute_elapsed_var.set("00:00:00")
+        self.set_execute_lights("idle")
+
+    def update_execute_timer(self):
+        if not self.execute_timer_running or not hasattr(self, "execute_elapsed_var"):
+            return
+
+        elapsed = int(time.perf_counter() - self.execute_timer_started_at)
+        hours = elapsed // 3600
+        minutes = (elapsed % 3600) // 60
+        seconds = elapsed % 60
+        self.execute_elapsed_var.set(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+        self.after(250, self.update_execute_timer)
+
+    def set_execute_lights(self, state, red_count=0):
+        if not hasattr(self, "execute_lights"):
+            return
+        colors = {
+            "idle": "#4b5563",
+            "red": "#ef4444",
+            "green": "#22c55e",
+        }
+        for index, light in enumerate(self.execute_lights):
+            if state == "green":
+                color = colors["green"]
+            elif state == "red" and index < red_count:
+                color = colors["red"]
+            else:
+                color = colors["idle"]
+            light.configure(fg_color=color)
+
+    def start_execute_countdown(self):
+        if self.execute_countdown_active or self.engine.playing:
+            return
+        self.execute_countdown_active = True
+        self.execute_countdown_step = 0
+        self.execute_play_button.configure(state="disabled")
+        self.execute_status_label.configure(text=self.t("execute.starting"))
+        self.execute_elapsed_var.set("00:00:00")
+        self.set_execute_lights("idle")
+        self.advance_execute_countdown()
+
+    def advance_execute_countdown(self):
+        if not self.execute_countdown_active:
+            return
+        self.execute_countdown_step += 1
+        if self.execute_countdown_step <= 3:
+            self.set_execute_lights("red", self.execute_countdown_step)
+            self.execute_countdown_after_id = self.after(1000, self.advance_execute_countdown)
+            return
+
+        self.execute_countdown_active = False
+        self.execute_countdown_after_id = None
+        self.set_execute_lights("green")
+        self.engine.play_events(list(self.execute_selected_events), loop=self.execute_loop_var.get())
+
+    def cancel_execute_countdown(self):
+        if not self.execute_countdown_active:
+            return False
+        self.execute_countdown_active = False
+        if self.execute_countdown_after_id is not None:
+            self.after_cancel(self.execute_countdown_after_id)
+            self.execute_countdown_after_id = None
+        self.execute_play_button.configure(state="normal")
+        self.execute_status_label.configure(
+            text=self.execute_selected_path.stem if self.execute_selected_path else self.t("execute.none")
+        )
+        self.execute_elapsed_var.set("00:00:00")
+        self.set_execute_lights("idle")
+        return True
+
     def update_live_inputs(self):
-        text = " + ".join(sorted(self.pressed_inputs)) if self.pressed_inputs else "Nada pressionado"
+        text = " + ".join(sorted(self.pressed_inputs)) if self.pressed_inputs else self.t("macro.nothing_pressed")
         self.live_inputs_var.set(text)
 
     def toggle_recording(self):
@@ -636,7 +1395,7 @@ class MacroApp(ctk.CTk):
             self.record_button.configure(text="3...", fg_color="#ef8a2f", hover_color="#c96f24")
 
     def set_record_button_idle(self):
-        self.record_button.configure(text="Gravar", fg_color="#d63d3d", hover_color="#b83232")
+        self.record_button.configure(text=self.t("macro.record"), fg_color="#d63d3d", hover_color="#b83232")
 
     def play_current(self):
         self.sync_events_from_engine()
@@ -650,8 +1409,8 @@ class MacroApp(ctk.CTk):
         self.name_var.set("")
         self.render_events()
         self.update_macro_selection()
-        self.live_inputs_var.set("Nada pressionado")
-        self.live_action_var.set("Aguardando gravacao")
+        self.live_inputs_var.set(self.t("macro.nothing_pressed"))
+        self.live_action_var.set(self.t("macro.waiting_recording"))
         self.status_var.set("Nova macro em branco.")
 
     def clear_macro(self):
@@ -691,6 +1450,8 @@ class MacroApp(ctk.CTk):
         self.current_file = path
         self.selected_macro_path = path
         self.refresh_macro_list(select_path=path)
+        if hasattr(self, "execute_macro_scroll"):
+            self.refresh_execute_macro_list(select_path=path)
         self.status_var.set(f"Macro salva: {path.name}")
 
     def load_macro(self, path):
@@ -718,6 +1479,8 @@ class MacroApp(ctk.CTk):
         self.current_file.unlink()
         self.new_macro()
         self.refresh_macro_list()
+        if hasattr(self, "execute_macro_scroll"):
+            self.refresh_execute_macro_list()
 
     def refresh_macro_list(self, select_path=None):
         for button, _path in self.macro_buttons:
@@ -761,6 +1524,102 @@ class MacroApp(ctk.CTk):
                     border_width=0,
                     text_color=("gray10", "gray90"),
                 )
+
+    def refresh_execute_macro_list(self, select_path=None):
+        for button, _path in self.execute_macro_buttons:
+            button.destroy()
+        self.execute_macro_buttons = []
+        self.execute_macro_paths = sorted(MACROS_DIR.glob("*.json"))
+
+        for index, path in enumerate(self.execute_macro_paths):
+            button = ctk.CTkButton(
+                self.execute_macro_scroll,
+                text=path.stem,
+                anchor="w",
+                fg_color="transparent",
+                text_color=("gray10", "gray90"),
+                hover_color=("#d8e6f3", "#1b2b42"),
+                command=lambda selected=path: self.select_execute_macro(selected),
+                border_width=0,
+            )
+            button.grid(row=index, column=0, sticky="ew", padx=4, pady=4)
+            self.execute_macro_buttons.append((button, path))
+
+        if select_path in self.execute_macro_paths:
+            self.select_execute_macro(select_path)
+        elif self.execute_selected_path not in self.execute_macro_paths:
+            self.clear_execute_selection()
+        else:
+            self.update_execute_macro_selection()
+
+    def select_execute_macro(self, path):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            messagebox.showerror("Macro invalida", f"Nao foi possivel carregar {path.name}.\n\n{exc}")
+            return
+
+        self.execute_selected_path = path
+        self.execute_selected_events = data.get("events", [])
+        name = data.get("name") or path.stem
+        duration = self.macro_duration(self.execute_selected_events)
+        self.execute_summary_var.set(
+            f"{name} | {len(self.execute_selected_events)} {self.t('execute.events')} | "
+            f"{self.t('execute.duration')}: {duration}"
+        )
+        self.execute_status_label.configure(text=name)
+        self.update_execute_macro_selection()
+        self.render_execute_timeline()
+
+    def clear_execute_selection(self):
+        self.execute_selected_path = None
+        self.execute_selected_events = []
+        if hasattr(self, "execute_summary_var"):
+            self.execute_summary_var.set(self.t("execute.select_hint"))
+            self.execute_status_label.configure(text=self.t("execute.none"))
+            self.render_execute_timeline()
+
+    def update_execute_macro_selection(self):
+        for button, path in self.execute_macro_buttons:
+            if self.execute_selected_path == path:
+                button.configure(
+                    fg_color=("#d8ecff", "#14395c"),
+                    hover_color=("#c7e2fb", "#1d4f7a"),
+                    border_width=2,
+                    border_color="#62df45",
+                    text_color=("#0f172a", "#ffffff"),
+                )
+            else:
+                button.configure(
+                    fg_color="transparent",
+                    hover_color=("#d8e6f3", "#1b2b42"),
+                    border_width=0,
+                    text_color=("gray10", "gray90"),
+                )
+
+    def render_execute_timeline(self):
+        dark = self.theme_var.get() == "Dark"
+        render_timeline(self.execute_timeline_canvas, self.execute_selected_events, dark)
+
+    def macro_duration(self, events):
+        if not events:
+            return "0s"
+        last_event = max(events, key=lambda event: float(event.get("t", 0)))
+        duration = float(last_event.get("t", 0)) + float(last_event.get("duration", 0))
+        if duration >= 1:
+            return f"{duration:.1f}s"
+        return f"{int(duration * 1000)}ms"
+
+    def play_execute_macro(self):
+        if not self.execute_selected_events:
+            self.status_var.set(self.t("execute.select_hint"))
+            return
+        self.start_execute_countdown()
+
+    def stop_execute_playback(self):
+        if self.cancel_execute_countdown():
+            return
+        self.engine.stop_playback()
 
     def render_events(self):
         self.table.delete(*self.table.get_children())

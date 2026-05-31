@@ -12,6 +12,11 @@ outputs/
 +-- requirements.txt
 +-- README.md
 +-- PROJECT_STRUCTURE.md
++-- config/
++   +-- app.json
++-- language/
++   +-- en.json
++   +-- pt-br.json
 +-- shortcuts.json
 +-- macros/
 +-- macroflow/
@@ -44,7 +49,11 @@ Modulo da interface grafica.
 Responsabilidades:
 
 - criar a janela principal com CustomTkinter
+- mostrar a tela inicial com os acessos de Criar / Editar Macro, Executar Macro e Configuracoes
 - montar barra lateral, cabecalho, painel ao vivo, timeline, tabela e editor
+- exibir a tela de configuracoes com idioma, tema e inicializacao
+- carregar textos traduzidos dos arquivos em `language/`
+- salvar preferencias gerais em `config/app.json`
 - processar eventos enviados pelo motor de macros
 - salvar, carregar, excluir e limpar macros
 - atualizar a tabela e a timeline visual
@@ -156,6 +165,26 @@ Quando mexer aqui:
 
 - mudar o local onde as macros sao salvas
 - adicionar novas constantes globais
+
+### `config/app.json`
+
+Arquivo de preferencias gerais do aplicativo.
+
+Responsabilidades:
+
+- guardar o idioma selecionado
+- guardar o tema selecionado
+- guardar se o app deve iniciar com o Windows
+
+### `language/pt-br.json` e `language/en.json`
+
+Arquivos de idioma da interface.
+
+Responsabilidades:
+
+- centralizar os textos visuais do MacroFlow
+- permitir trocar o idioma sem espalhar textos fixos pelo codigo
+- servir de base para adicionar novos idiomas no futuro
 
 ### `requirements.txt`
 

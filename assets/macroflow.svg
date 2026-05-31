@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="MacroFlow car icon">
+  <defs>
+    <linearGradient id="bg" x1="38" y1="28" x2="220" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b1b32"/>
+      <stop offset="0.58" stop-color="#06111f"/>
+      <stop offset="1" stop-color="#030812"/>
+    </linearGradient>
+    <linearGradient id="body" x1="48" y1="104" x2="218" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff4b4b"/>
+      <stop offset="0.55" stop-color="#e11d2e"/>
+      <stop offset="1" stop-color="#9f1022"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="96" y1="88" x2="159" y2="127" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a7f3ff"/>
+      <stop offset="1" stop-color="#1b9bdb"/>
+    </linearGradient>
+    <linearGradient id="green" x1="166" y1="126" x2="212" y2="178" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#95f871"/>
+      <stop offset="1" stop-color="#38c93f"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="220" height="220" rx="50" fill="url(#bg)"/>
+  <rect x="18" y="18" width="220" height="220" rx="50" fill="none" stroke="#1f6aa5" stroke-width="8"/>
+  <path d="M52 147c4-17 20-26 45-29l18-25c7-10 17-15 30-15h23c10 0 18 4 24 11l26 31c10 3 17 11 19 23l-8 23H55l-7-9 4-10z" fill="url(#body)"/>
+  <path d="M108 116l14-20c5-7 12-10 22-10h17c8 0 14 3 19 8l20 22h-92z" fill="url(#glass)"/>
+  <path d="M130 96c6-7 12-10 21-10h10c8 0 14 3 19 8l20 22h-82l12-20z" fill="#06111f" opacity=".35"/>
+  <path d="M62 145h54l-13 10H58l4-10z" fill="#ff8a8a"/>
+  <path d="M190 122l33 8 7 13h-41l-16-20 17-1z" fill="#f43f5e"/>
+  <path d="M63 168h164l-6 16H70l-7-16z" fill="#111827"/>
+  <circle cx="88" cy="170" r="24" fill="#050812"/>
+  <circle cx="88" cy="170" r="12" fill="#d8e7f4"/>
+  <circle cx="190" cy="170" r="24" fill="#050812"/>
+  <circle cx="190" cy="170" r="12" fill="#d8e7f4"/>
+  <path d="M45 154h32l-14 11H49l-4-11z" fill="#ffd84d"/>
+  <circle cx="190" cy="143" r="36" fill="url(#green)"/>
+  <path d="M178 123v40l32-20-32-20z" fill="#06111f"/>
+</svg>
