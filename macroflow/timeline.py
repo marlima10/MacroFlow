@@ -16,7 +16,7 @@ def render_timeline(canvas, events, dark):
     visible_events = [
         (index, event)
         for index, event in enumerate(events)
-        if event.get("type") in ("key", "mouse_click", "mouse_scroll")
+        if event.get("type") in ("key", "key_hold", "mouse_click", "mouse_scroll")
     ]
 
     if not visible_events:
@@ -67,6 +67,17 @@ def draw_key_event(canvas, x, center_y, event, key_color, text_color):
     box_width = max(26, min(74, 18 + len(label) * 8))
     rounded_rect(canvas, x, center_y - 16, x + box_width, center_y + 16, 4, fill=key_color, outline=key_color)
     canvas.create_text(x + box_width / 2, center_y, text=label, fill="#ffffff", font=("Segoe UI", 8, "bold"))
+
+    if event.get("type") == "key_hold":
+        amount, unit = format_delay(float(event.get("duration", 0)))
+        canvas.create_text(
+            x + box_width / 2,
+            center_y + 30,
+            text=f"{amount} {unit}",
+            fill=text_color,
+            font=("Segoe UI", 7, "bold"),
+        )
+        return x + box_width + 14
 
     triangle_y = center_y - 28 if bool(event.get("pressed", True)) else center_y + 28
     draw_triangle(canvas, x + box_width / 2, triangle_y, bool(event.get("pressed", True)), text_color)
@@ -138,4 +149,3 @@ def draw_mouse_icon(canvas, x, center_y, button, pressed, fill, outline):
 def draw_scroll_icon(canvas, x, center_y, fill, outline):
     draw_mouse_icon(canvas, x, center_y, "middle", False, fill, outline)
     canvas.create_line(x + 14, center_y - 8, x + 14, center_y + 8, fill=outline, width=2, arrow=tk.LAST)
-

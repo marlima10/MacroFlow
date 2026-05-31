@@ -71,6 +71,7 @@ Responsabilidades:
 - iniciar e parar gravacao
 - aguardar contagem regressiva antes de gravar
 - guardar eventos com tempo relativo
+- registrar teclas seguradas como eventos com duracao (`key_hold`)
 - enviar eventos em tempo real para a interface
 - reproduzir a macro capturada
 - reproduzir a macro em loop ate interrupcao
@@ -230,9 +231,8 @@ Cada macro salva contem:
 
 1. O usuario seleciona uma macro e clica em `Reproduzir` ou pressiona `F9`.
 2. `MacroApp` envia os eventos atuais para `MacroEngine`.
-3. O motor espera 3 segundos para o usuario focar a janela alvo.
-4. Os eventos sao executados respeitando os intervalos de tempo capturados.
-5. Se o usuario pressionar `F10`, o motor interrompe a reproducao.
+3. Os eventos sao executados imediatamente respeitando os intervalos de tempo capturados.
+4. Se o usuario pressionar `F10`, o motor interrompe a reproducao.
 
 ## Formato basico de evento
 
@@ -247,6 +247,20 @@ Exemplo de tecla:
   },
   "pressed": true,
   "t": 0.153
+}
+```
+
+Exemplo de tecla segurada:
+
+```json
+{
+  "type": "key_hold",
+  "key": {
+    "kind": "char",
+    "value": "w"
+  },
+  "t": 5.6465,
+  "duration": 25.1491
 }
 ```
 

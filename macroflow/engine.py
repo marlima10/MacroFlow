@@ -17,6 +17,7 @@ class MacroEngine:
         self.playing = False
         self.started_at = 0.0
         self.last_mouse_move = None
+        self.active_keys = {}
         self.ui_queue = ui_queue
         self.shortcuts = dict(shortcuts or DEFAULT_SHORTCUTS)
         self.stop_playback_requested = threading.Event()
@@ -54,6 +55,7 @@ class MacroEngine:
         self.recording = True
         self.started_at = time.perf_counter()
         self.last_mouse_move = None
+        self.active_keys = {}
         self.ui_queue.put(("recording_started", None))
         self.notify(f"Gravando... pressione {shortcut_label(self.shortcuts['record'])} para parar.")
 
@@ -66,6 +68,7 @@ class MacroEngine:
         if not self.recording:
             return
 
+        self.flush_active_keys()
         self.recording = False
         self.ui_queue.put(("recording_stopped", None))
         self.notify(f"Gravacao parada. {len(self.events)} eventos capturados.")
@@ -82,6 +85,7 @@ class MacroEngine:
             self.notify("Nao ha eventos para reproduzir.")
             return
 
+        events = normalize_playback_events(events)
         self.stop_playback_requested.clear()
         thread = threading.Thread(target=self._play_worker, args=(events, loop), daemon=True)
         thread.start()
@@ -108,22 +112,18 @@ class MacroEngine:
     def _play_worker(self, events, loop):
         self.playing = True
         self.ui_queue.put(("playing", True))
-        mode = " em loop" if loop else ""
-        self.notify(f"Reproduzindo{mode} em 3 segundos. Coloque a janela alvo em foco.")
-        if self.stop_playback_requested.wait(3):
-            self._finish_playback("Reproducao interrompida.")
-            return
+        self.notify("Reproduzindo em loop..." if loop else "Reproduzindo...")
 
         finish_message = "Reproducao finalizada."
         try:
             while True:
-                previous_t = 0.0
+                playback_started_at = time.perf_counter()
                 for event in events:
-                    delay = max(0, float(event.get("t", 0)) - previous_t)
+                    elapsed = time.perf_counter() - playback_started_at
+                    delay = max(0, float(event.get("t", 0)) - elapsed)
                     if self.stop_playback_requested.wait(delay):
                         finish_message = "Reproducao interrompida."
                         return
-                    previous_t = float(event.get("t", 0))
                     self.run_event(event)
                 if not loop:
                     return
@@ -144,6 +144,8 @@ class MacroEngine:
             self.mouse_controller.scroll(int(event["dx"]), int(event["dy"]))
         elif event_type == "key":
             self._run_key(event)
+        elif event_type == "key_hold":
+            self._run_key_hold(event)
 
     def on_mouse_move(self, x, y):
         if not self.recording:
@@ -183,17 +185,38 @@ class MacroEngine:
             return
 
         if self.recording and not self._is_control_shortcut(key):
+            key_id = key_event_id(key_to_data(key))
+            if key_id in self.active_keys:
+                return
             label = key_label(key)
+            self.active_keys[key_id] = {
+                "key": key_to_data(key),
+                "t": self.timestamp(),
+                "label": label,
+            }
             self.ui_queue.put(("input_down", label))
             self.ui_queue.put(("live_action", f"Tecla {label} pressionada"))
-            self.add_event({"type": "key", "key": key_to_data(key), "pressed": True})
 
     def on_key_release(self, key):
         if self.recording and not self._is_control_shortcut(key):
-            label = key_label(key)
+            key_data = key_to_data(key)
+            key_id = key_event_id(key_data)
+            active = self.active_keys.pop(key_id, None)
+            label = active["label"] if active else key_label(key)
             self.ui_queue.put(("input_up", label))
             self.ui_queue.put(("live_action", f"Tecla {label} solta"))
-            self.add_event({"type": "key", "key": key_to_data(key), "pressed": False})
+            if active is None:
+                return
+            now = self.timestamp()
+            self.events.append(
+                {
+                    "type": "key_hold",
+                    "key": active["key"],
+                    "t": active["t"],
+                    "duration": round(max(0, now - active["t"]), 4),
+                }
+            )
+            self.ui_queue.put(("event_added", list(self.events)))
 
     def notify(self, text):
         self.ui_queue.put(("status", text))
@@ -219,6 +242,23 @@ class MacroEngine:
 
     def _is_control_shortcut(self, key):
         return key_to_shortcut(key) in set(self.shortcuts.values())
+
+    def flush_active_keys(self):
+        if not self.active_keys:
+            return
+        now = self.timestamp()
+        for active in list(self.active_keys.values()):
+            self.events.append(
+                {
+                    "type": "key_hold",
+                    "key": active["key"],
+                    "t": active["t"],
+                    "duration": round(max(0, now - active["t"]), 4),
+                }
+            )
+            self.ui_queue.put(("input_up", active["label"]))
+        self.active_keys.clear()
+        self.ui_queue.put(("event_added", list(self.events)))
 
     def _finish_playback(self, message):
         self.playing = False
@@ -247,3 +287,52 @@ class MacroEngine:
             self.keyboard_controller.press(key)
         else:
             self.keyboard_controller.release(key)
+
+    def _run_key_hold(self, event):
+        key = key_from_data(event["key"])
+        duration = max(0, float(event.get("duration", 0)))
+        self.keyboard_controller.press(key)
+        try:
+            self.stop_playback_requested.wait(duration)
+        finally:
+            self.keyboard_controller.release(key)
+
+
+def key_event_id(key_data):
+    return f"{key_data.get('kind')}:{key_data.get('value')}"
+
+
+def normalize_playback_events(events):
+    normalized = []
+    active_keys = {}
+
+    for event in events:
+        if event.get("type") != "key":
+            normalized.append(event)
+            continue
+
+        key_id = key_event_id(event.get("key", {}))
+        pressed = bool(event.get("pressed"))
+        if pressed:
+            if key_id not in active_keys:
+                active_keys[key_id] = event
+            continue
+
+        start_event = active_keys.pop(key_id, None)
+        if start_event is None:
+            normalized.append(event)
+            continue
+
+        start_t = float(start_event.get("t", 0))
+        end_t = float(event.get("t", start_t))
+        normalized.append(
+            {
+                "type": "key_hold",
+                "key": start_event["key"],
+                "t": start_t,
+                "duration": round(max(0, end_t - start_t), 4),
+            }
+        )
+
+    normalized.extend(active_keys.values())
+    return sorted(normalized, key=lambda item: float(item.get("t", 0)))

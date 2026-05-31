@@ -30,13 +30,14 @@ python macro_recorder.py
 - Enquanto a macro estiver em reproducao, um alerta verde piscando aparece no painel superior.
 - Veja os atalhos em cards no painel superior e use `Editar atalhos` para alterar os padroes.
 - Veja os eventos no painel visual em formato de linha do tempo.
+- Teclas seguradas sao registradas como um unico evento com duracao, por exemplo `W` por 25s.
 - Use `Limpar` para remover todos os eventos da macro atual.
 - Dê duplo clique em uma celula da tabela para editar tempo, tipo ou dados JSON ali mesmo.
 - Voce tambem pode selecionar um evento e editar pelos campos de baixo.
 - Use o switch `Modo escuro` para alternar entre tema escuro e claro.
 - Pressione `Esc` para fechar quando a janela do MacroFlow estiver em foco.
 
-Ao reproduzir, o programa espera 3 segundos para voce colocar a janela certa em foco.
+Ao reproduzir, o programa executa imediatamente. Use `Loop` se quiser repetir ate pressionar `F10`.
 As macros ficam salvas na pasta `macros`.
 Os atalhos personalizados ficam salvos em `shortcuts.json`.
 

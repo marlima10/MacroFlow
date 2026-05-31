@@ -213,16 +213,26 @@ class MacroApp(ctk.CTk):
             row=0, column=4, padx=(8, 18), pady=(14, 4), sticky="e"
         )
 
+        self.countdown_var = tk.StringVar(value="")
+        self.countdown_label = ctk.CTkLabel(
+            status_card,
+            textvariable=self.countdown_var,
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="#ef8a2f",
+        )
+        self.countdown_label.grid(row=1, column=0, columnspan=5, padx=18, pady=(4, 2), sticky="w")
+        self.countdown_label.grid_remove()
+
         ctk.CTkLabel(status_card, text="Ao vivo", font=ctk.CTkFont(weight="bold")).grid(
-            row=1, column=0, padx=(18, 12), pady=(4, 14), sticky="w"
+            row=2, column=0, padx=(18, 12), pady=(4, 14), sticky="w"
         )
         self.live_inputs_var = tk.StringVar(value="Nada pressionado")
         self.live_action_var = tk.StringVar(value="Aguardando gravacao")
         ctk.CTkLabel(status_card, textvariable=self.live_inputs_var).grid(
-            row=1, column=1, padx=0, pady=(4, 14), sticky="w"
+            row=2, column=1, padx=0, pady=(4, 14), sticky="w"
         )
         ctk.CTkLabel(status_card, textvariable=self.live_action_var, anchor="e").grid(
-            row=1, column=2, padx=(12, 18), pady=(4, 14), sticky="e"
+            row=2, column=2, padx=(12, 18), pady=(4, 14), sticky="e"
         )
 
     def create_events_card(self):
@@ -494,6 +504,8 @@ class MacroApp(ctk.CTk):
         self.events = []
         self.render_events()
         self.pressed_inputs.clear()
+        self.countdown_label.grid_remove()
+        self.countdown_var.set("")
         self.live_inputs_var.set("Nada pressionado")
         self.live_action_var.set("Gravando agora")
         self.record_button.configure(text="Parar", fg_color="#ef8a2f", hover_color="#c96f24")
@@ -503,11 +515,15 @@ class MacroApp(ctk.CTk):
         self.render_events()
         self.pressed_inputs.clear()
         self.live_inputs_var.set("Nada pressionado")
-        self.live_action_var.set(f"Gravacao comeca em {remaining}")
+        self.countdown_var.set(f"Gravacao comeca em {remaining}")
+        self.countdown_label.grid()
+        self.live_action_var.set("Preparando gravacao")
         self.record_button.configure(text=f"{remaining}...", fg_color="#ef8a2f", hover_color="#c96f24")
 
     def on_recording_stopped(self):
         self.pressed_inputs.clear()
+        self.countdown_label.grid_remove()
+        self.countdown_var.set("")
         self.live_inputs_var.set("Nada pressionado")
         self.live_action_var.set("Gravacao encerrada")
         self.set_record_button_idle()
@@ -838,7 +854,7 @@ class MacroApp(ctk.CTk):
             data["type"] = self.event_type.get().strip()
             if not data["type"]:
                 raise ValueError("Tipo nao pode ficar vazio.")
-            if data["type"] not in {"mouse_move", "mouse_click", "mouse_scroll", "key"}:
+            if data["type"] not in {"mouse_move", "mouse_click", "mouse_scroll", "key", "key_hold"}:
                 raise ValueError(f"Tipo desconhecido: {data['type']}")
         except Exception as exc:
             messagebox.showerror("Evento invalido", str(exc))
