@@ -3,7 +3,8 @@ import queue
 import sys
 import time
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from pathlib import Path
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import customtkinter as ctk
 from pynput import keyboard, mouse
@@ -18,9 +19,9 @@ from .constants import (
     SHORTCUT_LABELS,
     SHORTCUTS_FILE,
 )
-from .engine import MacroEngine
+from .engine import DEFAULT_MATRIX_STEP_DELAY, MacroEngine, build_matrix_navigation_events
 from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
-from .smart_engine import SmartMacroEngine
+from .smart_engine import SmartMacroEngine, grid_navigation_steps
 from .timeline import render_timeline
 
 
@@ -32,8 +33,8 @@ class MacroApp(ctk.CTk):
         super().__init__()
 
         self.title("MacroFlow")
-        self.geometry("1100x680")
-        self.minsize(940, 560)
+        self.geometry("1240x876")
+        self.minsize(1240, 876)
         self.set_window_icon()
         self.after(250, self.set_window_icon)
         self.after(1000, self.set_window_icon)
@@ -49,6 +50,11 @@ class MacroApp(ctk.CTk):
         self.execute_macro_paths = []
         self.execute_selected_path = None
         self.execute_selected_events = []
+        self.playlist_macro_buttons = []
+        self.playlist_macro_paths = []
+        self.playlist_selected_path = None
+        self.playlist_items = []
+        self.playlist_selected_index = None
         self.selected_macro_path = None
         self.pressed_inputs = set()
         self.language = self.app_config["language"]
@@ -67,6 +73,8 @@ class MacroApp(ctk.CTk):
         self.execute_countdown_step = 0
         self.record_timer_running = False
         self.record_timer_started_at = 0.0
+        self.playlist_timer_running = False
+        self.playlist_timer_started_at = 0.0
 
         self.create_widgets()
         self.apply_tree_style()
@@ -130,6 +138,7 @@ class MacroApp(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.create_home_view()
+        self.create_playlist_view()
         self.create_execute_view()
         self.create_settings_view()
         self.create_sidebar()
@@ -320,6 +329,164 @@ class MacroApp(ctk.CTk):
             border_width=1,
             border_color=("#d8e0ea", "#132034"),
         )
+
+    def create_playlist_view(self):
+        self.playlist_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
+        self.playlist_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.playlist_view.grid_columnconfigure(0, weight=0)
+        self.playlist_view.grid_columnconfigure(1, weight=1)
+        self.playlist_view.grid_rowconfigure(1, weight=1)
+
+        header = ctk.CTkFrame(self.playlist_view, fg_color="transparent")
+        header.grid(row=0, column=0, columnspan=2, padx=34, pady=(28, 18), sticky="ew")
+        header.grid_columnconfigure(1, weight=1)
+        ctk.CTkButton(
+            header,
+            text="<",
+            width=42,
+            height=42,
+            corner_radius=21,
+            fg_color=("#e7edf5", "#152033"),
+            hover_color=("#d9e4f1", "#1c2b43"),
+            text_color=("gray10", "gray90"),
+            command=self.show_home,
+        ).grid(row=0, column=0, rowspan=2, padx=(0, 16), pady=4)
+        ctk.CTkLabel(header, text=self.t("playlist.title"), font=ctk.CTkFont(size=28, weight="bold")).grid(
+            row=0, column=1, sticky="w"
+        )
+        ctk.CTkLabel(
+            header,
+            text=self.t("playlist.description"),
+            font=ctk.CTkFont(size=14),
+            text_color=("gray35", "gray72"),
+        ).grid(row=1, column=1, sticky="w", pady=(2, 0))
+
+        list_card = self.create_execute_card(self.playlist_view)
+        list_card.grid(row=1, column=0, padx=(34, 10), pady=(0, 24), sticky="nsew")
+        list_card.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(
+            list_card,
+            text=self.t("playlist.saved_macros"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
+        self.playlist_macro_scroll = ctk.CTkScrollableFrame(list_card, fg_color="transparent")
+        self.playlist_macro_scroll.grid(row=1, column=0, padx=14, pady=(0, 14), sticky="nsew")
+        self.playlist_macro_scroll.grid_columnconfigure(0, weight=1)
+
+        content = ctk.CTkFrame(self.playlist_view, fg_color="transparent")
+        content.grid(row=1, column=1, padx=(10, 34), pady=(0, 24), sticky="nsew")
+        content.grid_columnconfigure(0, weight=1)
+        content.grid_rowconfigure(2, weight=1)
+
+        controls = self.create_execute_card(content)
+        controls.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        controls.grid_columnconfigure(4, weight=1)
+        self.playlist_selected_var = tk.StringVar(value=self.t("playlist.select_hint"))
+        ctk.CTkLabel(controls, textvariable=self.playlist_selected_var, text_color=("gray35", "gray72")).grid(
+            row=0, column=0, columnspan=5, padx=18, pady=(18, 8), sticky="w"
+        )
+        ctk.CTkButton(controls, text=self.t("playlist.add"), height=38, command=self.add_selected_macro_to_playlist).grid(
+            row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="ew"
+        )
+        ctk.CTkLabel(controls, text=self.t("playlist.repeats")).grid(row=1, column=1, padx=(8, 6), pady=(0, 18))
+        self.playlist_repeats_var = tk.StringVar(value="1")
+        ctk.CTkEntry(controls, width=72, textvariable=self.playlist_repeats_var).grid(
+            row=1, column=2, padx=(0, 8), pady=(0, 18)
+        )
+        self.playlist_play_button = ctk.CTkButton(
+            controls,
+            text=f"{shortcut_label(self.shortcuts['play_playlist'])}  {self.t('playlist.play')}",
+            height=38,
+            command=self.play_playlist,
+        )
+        self.playlist_play_button.grid(
+            row=1, column=3, padx=8, pady=(0, 18), sticky="ew"
+        )
+        self.playlist_stop_button = ctk.CTkButton(
+            controls,
+            text=f"{shortcut_label(self.shortcuts['stop_playlist'])}  {self.t('playlist.stop')}",
+            height=38,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.engine.stop_playback,
+        )
+        self.playlist_stop_button.grid(row=1, column=4, padx=(8, 18), pady=(0, 18), sticky="e")
+
+        status_card = self.create_execute_card(content)
+        status_card.grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        status_card.grid_columnconfigure((0, 1, 2), weight=1, uniform="playlist_status")
+        ctk.CTkLabel(
+            status_card,
+            text=self.t("playlist.current_macro").upper(),
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=("gray35", "gray70"),
+        ).grid(row=0, column=0, padx=18, pady=(18, 6), sticky="w")
+        ctk.CTkLabel(
+            status_card,
+            text=self.t("playlist.elapsed_time").upper(),
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=("gray35", "gray70"),
+        ).grid(row=0, column=1, padx=18, pady=(18, 6), sticky="w")
+        ctk.CTkLabel(
+            status_card,
+            text=self.t("playlist.progress").upper(),
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=("gray35", "gray70"),
+        ).grid(row=0, column=2, padx=18, pady=(18, 6), sticky="w")
+        self.playlist_current_var = tk.StringVar(value="-")
+        self.playlist_elapsed_var = tk.StringVar(value="00:00:00")
+        self.playlist_progress_var = tk.StringVar(value="-")
+        ctk.CTkLabel(
+            status_card,
+            textvariable=self.playlist_current_var,
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=1, column=0, padx=18, pady=(0, 18), sticky="w")
+        ctk.CTkLabel(
+            status_card,
+            textvariable=self.playlist_elapsed_var,
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#a855f7",
+        ).grid(row=1, column=1, padx=18, pady=(0, 18), sticky="w")
+        ctk.CTkLabel(
+            status_card,
+            textvariable=self.playlist_progress_var,
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#a855f7",
+        ).grid(row=1, column=2, padx=18, pady=(0, 18), sticky="w")
+
+        sequence = self.create_execute_card(content)
+        sequence.grid(row=2, column=0, sticky="nsew")
+        sequence.grid_columnconfigure(0, weight=1)
+        sequence.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(
+            sequence,
+            text=self.t("playlist.sequence"),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
+        self.playlist_sequence_scroll = ctk.CTkScrollableFrame(sequence, fg_color="transparent")
+        self.playlist_sequence_scroll.grid(row=1, column=0, padx=14, pady=(0, 10), sticky="nsew")
+        self.playlist_sequence_scroll.grid_columnconfigure(0, weight=1)
+
+        actions = ctk.CTkFrame(sequence, fg_color="transparent")
+        actions.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="ew")
+        ctk.CTkButton(
+            actions,
+            text=self.t("playlist.remove"),
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.remove_selected_playlist_item,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            actions,
+            text=self.t("playlist.clear"),
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.clear_playlist,
+        ).pack(side="left")
+
+        self.playlist_view.grid_remove()
+        self.refresh_playlist_macro_list()
+        self.render_playlist_items()
 
     def create_settings_view(self):
         self.settings_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
@@ -527,6 +694,10 @@ class MacroApp(ctk.CTk):
     def open_smart_macro_editor(self):
         self.show_app_shell("smart")
 
+    def open_macro_playlist(self):
+        self.refresh_playlist_macro_list()
+        self.show_placeholder("playlist")
+
     def open_execute_screen(self):
         self.refresh_execute_macro_list()
         self.show_placeholder("execute")
@@ -556,7 +727,7 @@ class MacroApp(ctk.CTk):
         events = list(self.events)
         active_view = self.active_view
 
-        for view_name in ("home_view", "execute_view", "settings_view", "sidebar", "main"):
+        for view_name in ("home_view", "playlist_view", "execute_view", "settings_view", "sidebar", "main"):
             view = getattr(self, view_name, None)
             if view is not None:
                 view.destroy()
@@ -565,6 +736,7 @@ class MacroApp(ctk.CTk):
         self.macro_buttons = []
         self.execute_macro_buttons = []
         self.create_home_view()
+        self.create_playlist_view()
         self.create_execute_view()
         self.create_settings_view()
         self.create_sidebar()
@@ -584,7 +756,7 @@ class MacroApp(ctk.CTk):
     def create_home_view(self):
         self.home_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
         self.home_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
-        self.home_view.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+        self.home_view.grid_columnconfigure((0, 1, 2, 3), weight=1)
         self.home_view.grid_rowconfigure(0, weight=1)
         self.home_view.grid_rowconfigure(5, weight=1)
 
@@ -592,16 +764,17 @@ class MacroApp(ctk.CTk):
             self.home_view,
             text=self.t("home.title"),
             font=ctk.CTkFont(size=32, weight="bold"),
-        ).grid(row=1, column=0, columnspan=5, padx=24, pady=(24, 8))
+        ).grid(row=1, column=0, columnspan=4, padx=24, pady=(24, 8))
         ctk.CTkLabel(
             self.home_view,
             text=self.t("home.subtitle"),
             font=ctk.CTkFont(size=16),
             text_color=("gray30", "gray78"),
-        ).grid(row=2, column=0, columnspan=5, padx=24, pady=(0, 36))
+        ).grid(row=2, column=0, columnspan=4, padx=24, pady=(0, 32))
 
         self.create_home_card(
-            column=1,
+            row=3,
+            column=0,
             title=self.t("home.create_title"),
             description=self.t("home.create_description"),
             icon="[=]",
@@ -609,7 +782,8 @@ class MacroApp(ctk.CTk):
             command=self.open_macro_editor,
         )
         self.create_home_card(
-            column=2,
+            row=3,
+            column=1,
             title=self.t("home.smart_title"),
             description=self.t("home.smart_description"),
             icon="AI",
@@ -617,16 +791,26 @@ class MacroApp(ctk.CTk):
             command=self.open_smart_macro_editor,
         )
         self.create_home_card(
-            column=3,
+            row=3,
+            column=2,
             title=self.t("home.execute_title"),
             description=self.t("home.execute_description"),
             icon=">",
             accent="#62df45",
             command=self.open_execute_screen,
         )
+        self.create_home_card(
+            row=3,
+            column=3,
+            title=self.t("home.playlist_title"),
+            description=self.t("home.playlist_description"),
+            icon="PL",
+            accent="#a855f7",
+            command=self.open_macro_playlist,
+        )
 
         footer = ctk.CTkFrame(self.home_view, corner_radius=10, fg_color=("#eef3f8", "#07111f"))
-        footer.grid(row=4, column=1, columnspan=3, padx=24, pady=(58, 0), sticky="ew")
+        footer.grid(row=4, column=0, columnspan=3, padx=(34, 24), pady=(42, 0), sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             footer,
@@ -645,19 +829,19 @@ class MacroApp(ctk.CTk):
             border_width=1,
             border_color=("#d3dbe5", "#1d2a3d"),
             command=self.open_settings_screen,
-        ).grid(row=4, column=4, padx=(0, 34), pady=(58, 0), sticky="w")
+        ).grid(row=4, column=3, padx=(0, 34), pady=(42, 0), sticky="ew")
 
-    def create_home_card(self, column, title, description, icon, accent, command):
+    def create_home_card(self, row, column, title, description, icon, accent, command):
         card = ctk.CTkFrame(
             self.home_view,
-            width=320,
+            width=260,
             height=360,
             corner_radius=22,
             fg_color=("#eef6ff", "#031123"),
             border_width=2,
             border_color=accent,
         )
-        card.grid(row=3, column=column, padx=20, pady=0, sticky="nsew")
+        card.grid(row=row, column=column, padx=14, pady=0, sticky="nsew")
         card.grid_propagate(False)
         card.grid_columnconfigure(0, weight=1)
 
@@ -853,7 +1037,7 @@ class MacroApp(ctk.CTk):
 
         actions = ctk.CTkFrame(header, fg_color="transparent")
         actions.grid(row=2, column=0, columnspan=2, padx=18, pady=(4, 16), sticky="ew")
-        for column in range(4):
+        for column in range(6):
             actions.grid_columnconfigure(column, weight=1, uniform="macro_actions")
 
         self.record_button = ctk.CTkButton(
@@ -871,12 +1055,28 @@ class MacroApp(ctk.CTk):
         )
         ctk.CTkButton(
             actions,
+            text=self.t("macro.import_json"),
+            height=38,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.import_macro_json,
+        ).grid(row=0, column=2, padx=8, sticky="ew")
+        ctk.CTkButton(
+            actions,
+            text=self.t("macro.export_json"),
+            height=38,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.export_macro_json,
+        ).grid(row=0, column=3, padx=8, sticky="ew")
+        ctk.CTkButton(
+            actions,
             text=self.t("macro.clear"),
             height=38,
             fg_color="#5c5f66",
             hover_color="#4d5056",
             command=self.clear_macro,
-        ).grid(row=0, column=2, padx=8, sticky="ew")
+        ).grid(row=0, column=4, padx=8, sticky="ew")
         ctk.CTkButton(
             actions,
             text=self.t("macro.delete"),
@@ -884,7 +1084,7 @@ class MacroApp(ctk.CTk):
             fg_color="#5c5f66",
             hover_color="#4d5056",
             command=self.delete_current,
-        ).grid(row=0, column=3, padx=(8, 0), sticky="ew")
+        ).grid(row=0, column=5, padx=(8, 0), sticky="ew")
 
     def create_status_card(self):
         status_card = ctk.CTkFrame(
@@ -1063,29 +1263,49 @@ class MacroApp(ctk.CTk):
             border_color=("#d8e0ea", "#132034"),
         )
         header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
-        header.grid_columnconfigure(1, weight=1)
+        header.grid_columnconfigure(5, weight=1)
 
         ctk.CTkLabel(
             header,
             text=self.t("smart.title"),
             font=ctk.CTkFont(size=22, weight="bold"),
-        ).grid(row=0, column=0, columnspan=4, padx=18, pady=(18, 8), sticky="w")
+        ).grid(row=0, column=0, columnspan=6, padx=18, pady=(18, 8), sticky="w")
 
-        ctk.CTkLabel(header, text=self.t("smart.target")).grid(row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="w")
-        self.smart_target_var = tk.StringVar(value="IMPREZA 22B")
-        ctk.CTkEntry(
-            header,
-            textvariable=self.smart_target_var,
-            placeholder_text=self.t("smart.target_placeholder"),
-            height=38,
-        ).grid(row=1, column=1, padx=(0, 8), pady=(0, 18), sticky="ew")
+        self.smart_row_var = tk.StringVar(value="2")
+        self.smart_column_var = tk.StringVar(value="3")
+        self.smart_delay_var = tk.StringVar(value=f"{DEFAULT_MATRIX_STEP_DELAY:.2f}")
 
-        ctk.CTkButton(header, text=self.t("smart.scan"), height=38, command=self.scan_smart_target).grid(
-            row=1, column=2, padx=6, pady=(0, 18)
+        ctk.CTkLabel(header, text=self.t("smart.target_row")).grid(
+            row=1, column=0, padx=(18, 8), pady=(0, 18), sticky="w"
+        )
+        ctk.CTkEntry(header, width=72, textvariable=self.smart_row_var, height=38).grid(
+            row=1, column=1, padx=(0, 12), pady=(0, 18)
+        )
+        ctk.CTkLabel(header, text=self.t("smart.target_column")).grid(
+            row=1, column=2, padx=(0, 8), pady=(0, 18), sticky="w"
+        )
+        ctk.CTkEntry(header, width=72, textvariable=self.smart_column_var, height=38).grid(
+            row=1, column=3, padx=(0, 12), pady=(0, 18)
+        )
+        ctk.CTkLabel(header, text=self.t("smart.delay")).grid(
+            row=1, column=4, padx=(0, 8), pady=(0, 18), sticky="w"
+        )
+        ctk.CTkEntry(header, width=82, textvariable=self.smart_delay_var, height=38).grid(
+            row=1, column=5, padx=(0, 12), pady=(0, 18), sticky="w"
+        )
+
+        ctk.CTkButton(header, text=self.t("smart.preview"), height=38, command=self.preview_smart_grid_path).grid(
+            row=2, column=0, columnspan=2, padx=(18, 6), pady=(0, 18), sticky="ew"
         )
         ctk.CTkButton(header, text=self.t("smart.run"), height=38, command=self.run_smart_navigation).grid(
-            row=1, column=3, padx=6, pady=(0, 18)
+            row=2, column=2, columnspan=2, padx=6, pady=(0, 18), sticky="ew"
         )
+        ctk.CTkButton(
+            header,
+            text=self.t("smart.save"),
+            height=38,
+            command=self.save_smart_grid_macro,
+        ).grid(row=2, column=4, padx=6, pady=(0, 18), sticky="ew")
         ctk.CTkButton(
             header,
             text=self.t("smart.stop"),
@@ -1093,7 +1313,7 @@ class MacroApp(ctk.CTk):
             fg_color="#5c5f66",
             hover_color="#4d5056",
             command=self.smart_engine.stop_navigation,
-        ).grid(row=1, column=4, padx=(6, 18), pady=(0, 18))
+        ).grid(row=2, column=5, padx=(6, 18), pady=(0, 18), sticky="ew")
 
         settings = ctk.CTkFrame(
             self.smart_view,
@@ -1103,21 +1323,14 @@ class MacroApp(ctk.CTk):
             border_color=("#d8e0ea", "#132034"),
         )
         settings.grid(row=1, column=0, sticky="ew", pady=(0, 14))
-        settings.grid_columnconfigure(3, weight=1)
+        settings.grid_columnconfigure(1, weight=1)
 
-        self.smart_max_steps_var = tk.StringVar(value="30")
-        self.smart_delay_var = tk.StringVar(value="0.35")
-        ctk.CTkLabel(settings, text=self.t("smart.max_steps")).grid(row=0, column=0, padx=(18, 8), pady=16)
-        ctk.CTkEntry(settings, width=70, textvariable=self.smart_max_steps_var).grid(row=0, column=1, pady=16)
-        ctk.CTkLabel(settings, text=self.t("smart.delay")).grid(row=0, column=2, padx=(18, 8), pady=16)
-        ctk.CTkEntry(settings, width=70, textvariable=self.smart_delay_var).grid(row=0, column=3, pady=16, sticky="w")
-        ctk.CTkButton(
+        ctk.CTkLabel(
             settings,
-            text=self.t("smart.dependencies"),
-            fg_color="#5c5f66",
-            hover_color="#4d5056",
-            command=self.show_smart_dependencies,
-        ).grid(row=0, column=4, padx=(12, 18), pady=16)
+            text=self.t("smart.grid_help"),
+            justify="left",
+            text_color=("#4d5562", "#aab3c1"),
+        ).grid(row=0, column=0, columnspan=2, padx=18, pady=16, sticky="w")
 
         panel = ctk.CTkFrame(
             self.smart_view,
@@ -1132,16 +1345,13 @@ class MacroApp(ctk.CTk):
 
         ctk.CTkLabel(
             panel,
-            text=self.t("smart.screen_reading"),
+            text=self.t("smart.execution_log"),
             font=ctk.CTkFont(size=16, weight="bold"),
         ).grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
 
         self.smart_log = ctk.CTkTextbox(panel, height=260)
         self.smart_log.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="nsew")
-        self.set_smart_status(
-            "Use esta tela para localizar um carro pelo texto na tela. "
-            "O motor detecta a borda verde atual e tenta navegar com as setas ate o alvo."
-        )
+        self.set_smart_status(self.t("smart.initial_log"))
 
     def show_view(self, view):
         self.active_view = view
@@ -1173,30 +1383,85 @@ class MacroApp(ctk.CTk):
             lines.append("O pytesseract tambem precisa do Tesseract OCR instalado no Windows.")
         self.set_smart_status("\n".join(lines))
 
-    def scan_smart_target(self):
-        target = self.smart_target_var.get().strip()
-        if not target:
-            messagebox.showerror("Alvo vazio", "Digite o nome do carro alvo.")
+    def preview_smart_grid_path(self):
+        try:
+            target_row, target_column, _step_delay = self.get_smart_grid_values()
+        except ValueError as exc:
+            messagebox.showerror(self.t("smart.invalid_config_title"), str(exc))
             return
-        result = self.smart_engine.scan_screen(target)
-        self.set_smart_status(result["message"])
-        if result.get("selected"):
-            self.set_smart_status(f"Selecionado: {result['selected']}")
-        if result.get("target"):
-            self.set_smart_status(f"Alvo: {result['target']}")
+
+        right_steps = max(0, target_column - 1)
+        down_steps = max(0, target_row - 1)
+        self.set_smart_status(
+            self.t("smart.path_preview").format(
+                row=target_row,
+                column=target_column,
+                right=right_steps,
+                down=down_steps,
+            )
+        )
 
     def run_smart_navigation(self):
-        target = self.smart_target_var.get().strip()
-        if not target:
-            messagebox.showerror("Alvo vazio", "Digite o nome do carro alvo.")
-            return
         try:
-            max_steps = int(self.smart_max_steps_var.get())
-            step_delay = float(self.smart_delay_var.get().replace(",", "."))
-        except ValueError:
-            messagebox.showerror("Configuracao invalida", "Passos max. e intervalo precisam ser numericos.")
+            target_row, target_column, step_delay = self.get_smart_grid_values()
+        except ValueError as exc:
+            messagebox.showerror(self.t("smart.invalid_config_title"), str(exc))
             return
-        self.smart_engine.start_navigation(target, max_steps=max_steps, step_delay=step_delay)
+        self.smart_engine.start_grid_navigation(target_row, target_column, step_delay=step_delay)
+
+    def save_smart_grid_macro(self):
+        try:
+            target_row, target_column, _step_delay = self.get_smart_grid_values()
+        except ValueError as exc:
+            messagebox.showerror(self.t("smart.invalid_config_title"), str(exc))
+            return
+
+        name = self.smart_grid_macro_name(target_row, target_column)
+        step_delay = DEFAULT_MATRIX_STEP_DELAY
+        path = MACROS_DIR / f"{self.safe_macro_name(name)}.json"
+        data = {
+            "version": 1,
+            "name": name,
+            "kind": "matrix_navigation",
+            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "matrix": {
+                "start_row": 1,
+                "start_column": 1,
+                "target_row": target_row,
+                "target_column": target_column,
+                "step_delay": step_delay,
+            },
+            "events": self.build_smart_grid_events(target_row, target_column, step_delay),
+        }
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.refresh_macro_list()
+        if hasattr(self, "execute_macro_scroll"):
+            self.refresh_execute_macro_list()
+        if hasattr(self, "playlist_macro_scroll"):
+            self.refresh_playlist_macro_list(select_path=path)
+        self.set_smart_status(f"{self.t('smart.saved')}: {name}")
+
+    def build_smart_grid_events(self, target_row, target_column, step_delay):
+        return build_matrix_navigation_events(target_row, target_column, step_delay)
+
+    @staticmethod
+    def smart_grid_macro_name(target_row, target_column):
+        return f"L{target_row}C{target_column}(Matriz)"
+
+    def get_smart_grid_values(self):
+        try:
+            target_row = int(self.smart_row_var.get())
+            target_column = int(self.smart_column_var.get())
+            step_delay = float(self.smart_delay_var.get().replace(",", "."))
+        except ValueError as exc:
+            raise ValueError(self.t("smart.invalid_numbers")) from exc
+        if target_row < 1 or target_row > 3:
+            raise ValueError(self.t("smart.invalid_row"))
+        if target_column < 1:
+            raise ValueError(self.t("smart.invalid_column"))
+        if step_delay < 0:
+            raise ValueError(self.t("smart.invalid_delay"))
+        return target_row, target_column, step_delay
 
     def apply_tree_style(self):
         dark = self.theme_var.get() == "Dark"
@@ -1263,15 +1528,36 @@ class MacroApp(ctk.CTk):
             if hasattr(self, "execute_play_button"):
                 self.execute_play_button.configure(state="disabled" if payload else "normal")
                 if payload:
-                    self.start_execute_timer()
+                    if self.active_screen == "playlist":
+                        self.start_playlist_timer()
+                    else:
+                        self.start_execute_timer()
                 else:
                     self.stop_execute_timer()
+                    self.stop_playlist_timer()
             self.set_playback_alert(payload)
+        elif action == "playlist_current":
+            if hasattr(self, "playlist_current_var"):
+                self.playlist_current_var.set(payload)
+        elif action == "playlist_progress":
+            if hasattr(self, "playlist_progress_var"):
+                current, total = payload
+                self.playlist_progress_var.set(f"{current} de {total}")
         elif action == "play_shortcut":
             if self.active_screen == "execute":
                 self.play_execute_macro()
                 return
             self.status_var.set("Use a tela Executar Macro para reproduzir macros.")
+        elif action == "play_playlist_shortcut":
+            if self.active_screen == "playlist":
+                self.play_playlist()
+                return
+            self.status_var.set("Use a tela Playlist de macro para executar playlists.")
+        elif action == "stop_playlist_shortcut":
+            if self.active_screen == "playlist":
+                self.engine.stop_playback()
+                return
+            self.status_var.set("Use a tela Playlist de macro para parar playlists.")
         elif action == "stop_playback_shortcut":
             if self.active_screen == "execute":
                 self.stop_execute_playback()
@@ -1370,8 +1656,25 @@ class MacroApp(ctk.CTk):
         self.engine.set_shortcuts(normalized)
         self.save_shortcuts()
         self.render_shortcut_pills()
+        self.refresh_shortcut_button_labels()
         self.status_var.set("Atalhos atualizados.")
         return True
+
+    def refresh_shortcut_button_labels(self):
+        if hasattr(self, "execute_play_button"):
+            self.execute_play_button.configure(text=f"{shortcut_label(self.shortcuts['play'])}  {self.t('execute.play')}")
+        if hasattr(self, "execute_stop_button"):
+            self.execute_stop_button.configure(
+                text=f"{shortcut_label(self.shortcuts['stop_playback'])}  {self.t('execute.stop')}"
+            )
+        if hasattr(self, "playlist_play_button"):
+            self.playlist_play_button.configure(
+                text=f"{shortcut_label(self.shortcuts['play_playlist'])}  {self.t('playlist.play')}"
+            )
+        if hasattr(self, "playlist_stop_button"):
+            self.playlist_stop_button.configure(
+                text=f"{shortcut_label(self.shortcuts['stop_playlist'])}  {self.t('playlist.stop')}"
+            )
 
     def reset_shortcuts(self):
         self.apply_shortcuts(dict(DEFAULT_SHORTCUTS))
@@ -1464,6 +1767,36 @@ class MacroApp(ctk.CTk):
         seconds = elapsed % 60
         self.execute_elapsed_var.set(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
         self.after(250, self.update_execute_timer)
+
+    def start_playlist_timer(self):
+        self.playlist_timer_running = True
+        self.playlist_timer_started_at = time.perf_counter()
+        if hasattr(self, "playlist_elapsed_var"):
+            self.playlist_elapsed_var.set("00:00:00")
+        if hasattr(self, "playlist_current_var"):
+            self.playlist_current_var.set("-")
+        if hasattr(self, "playlist_progress_var"):
+            self.playlist_progress_var.set("-")
+        self.update_playlist_timer()
+
+    def stop_playlist_timer(self):
+        self.playlist_timer_running = False
+        if hasattr(self, "playlist_elapsed_var"):
+            self.playlist_elapsed_var.set("00:00:00")
+        if hasattr(self, "playlist_current_var"):
+            self.playlist_current_var.set("-")
+        if hasattr(self, "playlist_progress_var"):
+            self.playlist_progress_var.set("-")
+
+    def update_playlist_timer(self):
+        if not self.playlist_timer_running or not hasattr(self, "playlist_elapsed_var"):
+            return
+        elapsed = int(time.perf_counter() - self.playlist_timer_started_at)
+        hours = elapsed // 3600
+        minutes = (elapsed % 3600) // 60
+        seconds = elapsed % 60
+        self.playlist_elapsed_var.set(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+        self.after(250, self.update_playlist_timer)
 
     def set_execute_lights(self, state, red_count=0):
         if not hasattr(self, "execute_lights"):
@@ -1591,7 +1924,71 @@ class MacroApp(ctk.CTk):
         self.refresh_macro_list(select_path=path)
         if hasattr(self, "execute_macro_scroll"):
             self.refresh_execute_macro_list(select_path=path)
+        if hasattr(self, "playlist_macro_scroll"):
+            self.refresh_playlist_macro_list(select_path=path)
         self.status_var.set(f"Macro salva: {path.name}")
+
+    def import_macro_json(self):
+        file_path = filedialog.askopenfilename(
+            title=self.t("macro.import_json"),
+            filetypes=(("JSON", "*.json"), (self.t("macro.all_files"), "*.*")),
+        )
+        if not file_path:
+            return
+
+        path = Path(file_path)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            messagebox.showerror(
+                self.t("macro.invalid_title"),
+                f"{self.t('macro.import_error')} {path.name}.\n\n{exc}",
+            )
+            return
+
+        events = data.get("events")
+        if not isinstance(events, list):
+            messagebox.showerror(self.t("macro.invalid_title"), self.t("macro.events_required"))
+            return
+
+        self.current_file = None
+        self.selected_macro_path = None
+        self.name_var.set(data.get("name") or path.stem)
+        self.events = events
+        self.engine.events = list(self.events)
+        self.render_events()
+        self.update_macro_selection()
+        self.status_var.set(f"{self.t('macro.imported')}: {path.name}")
+
+    def export_macro_json(self):
+        self.sync_events_from_engine()
+        name = self.name_var.get().strip() or "macro"
+        default_name = f"{self.safe_macro_name(name) or 'macro'}.json"
+        file_path = filedialog.asksaveasfilename(
+            title=self.t("macro.export_json"),
+            defaultextension=".json",
+            initialfile=default_name,
+            filetypes=(("JSON", "*.json"), (self.t("macro.all_files"), "*.*")),
+        )
+        if not file_path:
+            return
+
+        path = Path(file_path)
+        data = {
+            "version": 1,
+            "name": name,
+            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "events": self.events,
+        }
+        try:
+            path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError as exc:
+            messagebox.showerror(
+                self.t("macro.export_error_title"),
+                f"{self.t('macro.export_error')} {path.name}.\n\n{exc}",
+            )
+            return
+        self.status_var.set(f"{self.t('macro.exported')}: {path.name}")
 
     def load_macro(self, path):
         try:
@@ -1620,6 +2017,8 @@ class MacroApp(ctk.CTk):
         self.refresh_macro_list()
         if hasattr(self, "execute_macro_scroll"):
             self.refresh_execute_macro_list()
+        if hasattr(self, "playlist_macro_scroll"):
+            self.refresh_playlist_macro_list()
 
     def refresh_macro_list(self, select_path=None):
         for button, _path in self.macro_buttons:
@@ -1760,6 +2159,133 @@ class MacroApp(ctk.CTk):
             return
         self.engine.stop_playback()
 
+    def refresh_playlist_macro_list(self, select_path=None):
+        for button, _path in self.playlist_macro_buttons:
+            button.destroy()
+        self.playlist_macro_buttons = []
+        self.playlist_macro_paths = sorted(MACROS_DIR.glob("*.json"))
+
+        for index, path in enumerate(self.playlist_macro_paths):
+            button = ctk.CTkButton(
+                self.playlist_macro_scroll,
+                text=path.stem,
+                anchor="w",
+                fg_color="transparent",
+                text_color=("gray10", "gray90"),
+                hover_color=("#d8e6f3", "#1b2b42"),
+                command=lambda selected=path: self.select_playlist_macro(selected),
+                border_width=0,
+            )
+            button.grid(row=index, column=0, sticky="ew", padx=4, pady=4)
+            self.playlist_macro_buttons.append((button, path))
+
+        if select_path in self.playlist_macro_paths:
+            self.select_playlist_macro(select_path)
+        elif self.playlist_selected_path not in self.playlist_macro_paths:
+            self.playlist_selected_path = None
+            if hasattr(self, "playlist_selected_var"):
+                self.playlist_selected_var.set(self.t("playlist.select_hint"))
+        self.update_playlist_macro_selection()
+
+    def select_playlist_macro(self, path):
+        self.playlist_selected_path = path
+        self.playlist_selected_var.set(path.stem)
+        self.update_playlist_macro_selection()
+
+    def update_playlist_macro_selection(self):
+        for button, path in self.playlist_macro_buttons:
+            if self.playlist_selected_path == path:
+                button.configure(
+                    fg_color=("#d8ecff", "#14395c"),
+                    hover_color=("#c7e2fb", "#1d4f7a"),
+                    border_width=2,
+                    border_color="#a855f7",
+                    text_color=("#0f172a", "#ffffff"),
+                )
+            else:
+                button.configure(
+                    fg_color="transparent",
+                    hover_color=("#d8e6f3", "#1b2b42"),
+                    border_width=0,
+                    text_color=("gray10", "gray90"),
+                )
+
+    def add_selected_macro_to_playlist(self):
+        if self.playlist_selected_path is None:
+            self.playlist_selected_var.set(self.t("playlist.select_hint"))
+            return
+        try:
+            data = json.loads(self.playlist_selected_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            messagebox.showerror("Macro invalida", f"Nao foi possivel carregar {self.playlist_selected_path.name}.\n\n{exc}")
+            return
+        self.playlist_items.append(
+            {
+                "name": data.get("name") or self.playlist_selected_path.stem,
+                "path": self.playlist_selected_path,
+                "kind": data.get("kind"),
+                "matrix": data.get("matrix"),
+                "events": data.get("events", []),
+            }
+        )
+        self.playlist_selected_index = len(self.playlist_items) - 1
+        self.render_playlist_items()
+
+    def render_playlist_items(self):
+        for child in self.playlist_sequence_scroll.winfo_children():
+            child.destroy()
+        if not self.playlist_items:
+            ctk.CTkLabel(
+                self.playlist_sequence_scroll,
+                text=self.t("playlist.empty"),
+                text_color=("gray35", "gray72"),
+            ).grid(row=0, column=0, padx=12, pady=16, sticky="w")
+            return
+        for index, item in enumerate(self.playlist_items):
+            selected = index == self.playlist_selected_index
+            button = ctk.CTkButton(
+                self.playlist_sequence_scroll,
+                text=f"{index + 1}. {item['name']}",
+                anchor="w",
+                fg_color=("#eadcff", "#3b1764") if selected else "transparent",
+                hover_color=("#e1d0fb", "#4a2377"),
+                text_color=("gray10", "gray90"),
+                border_width=2 if selected else 0,
+                border_color="#a855f7",
+                command=lambda selected_index=index: self.select_playlist_item(selected_index),
+            )
+            button.grid(row=index, column=0, sticky="ew", padx=4, pady=4)
+
+    def select_playlist_item(self, index):
+        self.playlist_selected_index = index
+        self.render_playlist_items()
+
+    def remove_selected_playlist_item(self):
+        if self.playlist_selected_index is None:
+            return
+        del self.playlist_items[self.playlist_selected_index]
+        if not self.playlist_items:
+            self.playlist_selected_index = None
+        else:
+            self.playlist_selected_index = min(self.playlist_selected_index, len(self.playlist_items) - 1)
+        self.render_playlist_items()
+
+    def clear_playlist(self):
+        self.playlist_items = []
+        self.playlist_selected_index = None
+        self.render_playlist_items()
+
+    def play_playlist(self):
+        try:
+            repeats = int(self.playlist_repeats_var.get())
+        except ValueError:
+            messagebox.showerror(self.t("playlist.title"), self.t("playlist.invalid_repeats"))
+            return
+        if repeats <= 0:
+            messagebox.showerror(self.t("playlist.title"), self.t("playlist.invalid_repeats"))
+            return
+        self.engine.play_playlist(list(self.playlist_items), repeats)
+
     def render_events(self):
         self.table.delete(*self.table.get_children())
         for index, event in enumerate(self.events):
@@ -1892,7 +2418,7 @@ class MacroApp(ctk.CTk):
 
     @staticmethod
     def safe_macro_name(name):
-        return "".join(ch for ch in name if ch.isalnum() or ch in (" ", "-", "_")).strip()
+        return "".join(ch for ch in name if ch.isalnum() or ch in (" ", "-", "_", "(", ")")).strip()
 
 
 class ShortcutEditor(ctk.CTkToplevel):
@@ -1900,7 +2426,7 @@ class ShortcutEditor(ctk.CTkToplevel):
         super().__init__(app)
         self.app = app
         self.title(app.t("settings.shortcuts_button"))
-        self.geometry("460x340")
+        self.geometry("500x430")
         self.resizable(False, False)
         self.transient(app)
         self.grab_set()
@@ -1923,7 +2449,7 @@ class ShortcutEditor(ctk.CTkToplevel):
             text_color=("gray35", "gray75"),
         ).grid(row=1, column=0, columnspan=2, padx=22, pady=(0, 16), sticky="w")
 
-        for row, action in enumerate(("record", "play", "stop_playback", "close"), start=2):
+        for row, action in enumerate(("play_playlist", "stop_playlist", "record", "play", "stop_playback", "close"), start=2):
             ctk.CTkLabel(self, text=self.app.shortcut_action_label(action)).grid(
                 row=row, column=0, padx=(22, 12), pady=8, sticky="w"
             )
@@ -1933,7 +2459,7 @@ class ShortcutEditor(ctk.CTkToplevel):
             self.entries[action] = entry
 
         buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=6, column=0, columnspan=2, padx=22, pady=(18, 22), sticky="ew")
+        buttons.grid(row=8, column=0, columnspan=2, padx=22, pady=(18, 22), sticky="ew")
 
         ctk.CTkButton(
             buttons,

@@ -16,6 +16,8 @@ LANGUAGE_DIR.mkdir(exist_ok=True)
 ASSETS_DIR.mkdir(exist_ok=True)
 
 DEFAULT_SHORTCUTS = {
+    "play_playlist": "f6",
+    "stop_playlist": "f7",
     "record": "f8",
     "play": "f9",
     "stop_playback": "f10",
@@ -23,6 +25,8 @@ DEFAULT_SHORTCUTS = {
 }
 
 SHORTCUT_LABELS = {
+    "play_playlist": "Executa playlist",
+    "stop_playlist": "Para playlist",
     "record": "Grava/Para",
     "play": "Reproduz",
     "stop_playback": "Para reproducao",

@@ -58,6 +58,18 @@ class SmartMacroEngine:
         )
         thread.start()
 
+    def start_grid_navigation(self, target_row, target_column, step_delay=0.3):
+        if self.running:
+            self.status_callback("Macro inteligente ja esta em execucao.")
+            return
+        self.stop_requested.clear()
+        thread = threading.Thread(
+            target=self._grid_navigation_worker,
+            args=(target_row, target_column, step_delay),
+            daemon=True,
+        )
+        thread.start()
+
     def stop_navigation(self):
         self.stop_requested.set()
         self.status_callback("Parando busca inteligente...")
@@ -89,6 +101,32 @@ class SmartMacroEngine:
                 time.sleep(step_delay)
 
             self.status_callback("Limite de passos atingido sem selecionar o alvo.")
+        finally:
+            self.running = False
+
+    def _grid_navigation_worker(self, target_row, target_column, step_delay):
+        self.running = True
+        try:
+            steps = grid_navigation_steps(target_row, target_column)
+            if not steps:
+                self.status_callback("Destino ja esta na linha 1, coluna 1.")
+                return
+
+            self.status_callback(
+                f"Navegando da linha 1, coluna 1 ate linha {target_row}, coluna {target_column}."
+            )
+            for index, direction in enumerate(steps, start=1):
+                if self.stop_requested.is_set():
+                    self.status_callback("Macro inteligente interrompida.")
+                    return
+
+                self.status_callback(f"Passo {index}/{len(steps)}: seta {direction}")
+                key = arrow_key(direction)
+                self.keyboard.press(key)
+                self.keyboard.release(key)
+                time.sleep(step_delay)
+
+            self.status_callback(f"Destino alcancado: linha {target_row}, coluna {target_column}.")
         finally:
             self.running = False
 
@@ -187,3 +225,10 @@ def arrow_key(direction):
         "down": Key.down,
         "up": Key.up,
     }[direction]
+
+
+def grid_navigation_steps(target_row, target_column):
+    steps = []
+    steps.extend(["right"] * max(0, target_column - 1))
+    steps.extend(["down"] * max(0, target_row - 1))
+    return steps

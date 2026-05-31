@@ -9,6 +9,10 @@ from .constants import DEFAULT_SHORTCUTS
 from .input_utils import key_from_data, key_label, key_to_data, key_to_shortcut, shortcut_label
 
 
+MATRIX_ROW_LIMIT = 3
+DEFAULT_MATRIX_STEP_DELAY = 0.3
+
+
 class MacroEngine:
     def __init__(self, ui_queue, shortcuts=None):
         self.events = []
@@ -90,6 +94,39 @@ class MacroEngine:
         thread = threading.Thread(target=self._play_worker, args=(events, loop), daemon=True)
         thread.start()
 
+    def play_playlist(self, items, repeats):
+        if self.recording:
+            self.notify("Pare a gravacao antes de reproduzir.")
+            return
+        if self.playing:
+            self.notify("Uma macro ja esta em reproducao.")
+            return
+        if not items:
+            self.notify("Nao ha macros na playlist.")
+            return
+
+        normalized_items = []
+        for item in items:
+            if is_matrix_navigation_item(item):
+                normalized_items.append(
+                    {
+                        "name": item.get("name", "Macro"),
+                        "kind": "matrix_navigation",
+                        "matrix": dict(item.get("matrix", {})),
+                    }
+                )
+                continue
+            events = normalize_playback_events(item.get("events", []))
+            if events:
+                normalized_items.append({"name": item.get("name", "Macro"), "events": events})
+        if not normalized_items:
+            self.notify("Nao ha eventos para reproduzir.")
+            return
+
+        self.stop_playback_requested.clear()
+        thread = threading.Thread(target=self._playlist_worker, args=(normalized_items, repeats), daemon=True)
+        thread.start()
+
     def stop_playback(self):
         if not self.playing:
             self.notify("Nenhuma reproducao em andamento.")
@@ -132,6 +169,37 @@ class MacroEngine:
             finish_message = f"Erro na reproducao: {exc}"
         finally:
             self._finish_playback(finish_message)
+
+    def _playlist_worker(self, items, repeats):
+        self.playing = True
+        self.ui_queue.put(("playing", True))
+        self.notify(f"Executando playlist {repeats} vez(es)...")
+
+        finish_message = "Playlist finalizada."
+        try:
+            for repeat_index in range(repeats):
+                self.ui_queue.put(("playlist_progress", (repeat_index + 1, repeats)))
+                for item in items:
+                    if self.stop_playback_requested.is_set():
+                        finish_message = "Playlist interrompida."
+                        return
+                    play_item = resolve_playlist_item_for_repeat(item, repeat_index)
+                    self.ui_queue.put(("playlist_current", play_item["name"]))
+                    self.notify(f"Playlist {repeat_index + 1}/{repeats}: {play_item['name']}")
+                    self._run_timed_events(play_item["events"])
+        except Exception as exc:
+            finish_message = f"Erro na playlist: {exc}"
+        finally:
+            self._finish_playback(finish_message)
+
+    def _run_timed_events(self, events):
+        playback_started_at = time.perf_counter()
+        for event in events:
+            elapsed = time.perf_counter() - playback_started_at
+            delay = max(0, float(event.get("t", 0)) - elapsed)
+            if self.stop_playback_requested.wait(delay):
+                return
+            self.run_event(event)
 
     def run_event(self, event):
         event_type = event["type"]
@@ -232,6 +300,12 @@ class MacroEngine:
         if shortcut == self.shortcuts["play"]:
             self.ui_queue.put(("play_shortcut", None))
             return True
+        if shortcut == self.shortcuts["play_playlist"]:
+            self.ui_queue.put(("play_playlist_shortcut", None))
+            return True
+        if shortcut == self.shortcuts["stop_playlist"]:
+            self.ui_queue.put(("stop_playlist_shortcut", None))
+            return True
         if shortcut == self.shortcuts["stop_playback"]:
             self.ui_queue.put(("stop_playback_shortcut", None))
             return True
@@ -300,6 +374,53 @@ class MacroEngine:
 
 def key_event_id(key_data):
     return f"{key_data.get('kind')}:{key_data.get('value')}"
+
+
+def is_matrix_navigation_item(item):
+    return item.get("kind") == "matrix_navigation" and isinstance(item.get("matrix"), dict)
+
+
+def resolve_playlist_item_for_repeat(item, repeat_index):
+    if not is_matrix_navigation_item(item):
+        return item
+
+    matrix = item["matrix"]
+    target_row, target_column = matrix_target_for_repeat(matrix, repeat_index)
+    step_delay = float(matrix.get("step_delay", DEFAULT_MATRIX_STEP_DELAY))
+    return {
+        "name": f"L{target_row}C{target_column}(Matriz)",
+        "events": build_matrix_navigation_events(target_row, target_column, step_delay),
+    }
+
+
+def matrix_target_for_repeat(matrix, repeat_index):
+    start_row = int(matrix.get("target_row", 1))
+    start_column = int(matrix.get("target_column", 1))
+    linear_position = ((start_column - 1) * MATRIX_ROW_LIMIT) + (start_row - 1) + repeat_index
+    target_row = (linear_position % MATRIX_ROW_LIMIT) + 1
+    target_column = (linear_position // MATRIX_ROW_LIMIT) + 1
+    return target_row, target_column
+
+
+def build_matrix_navigation_events(target_row, target_column, step_delay=DEFAULT_MATRIX_STEP_DELAY):
+    events = []
+    for index, direction in enumerate(matrix_navigation_steps(target_row, target_column)):
+        events.append(
+            {
+                "type": "key_hold",
+                "key": {"kind": "special", "value": direction},
+                "t": round(index * step_delay, 4),
+                "duration": 0.05,
+            }
+        )
+    return events
+
+
+def matrix_navigation_steps(target_row, target_column):
+    steps = []
+    steps.extend(["right"] * max(0, target_column - 1))
+    steps.extend(["down"] * max(0, target_row - 1))
+    return steps
 
 
 def normalize_playback_events(events):
