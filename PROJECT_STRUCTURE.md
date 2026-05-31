@@ -205,7 +205,7 @@ Atalhos padrao:
 - `record`: `F8`
 - `play`: `F9`
 - `stop_playback`: `F10`
-- `close`: `Esc`
+- `close`: `F2`
 
 ### `README.md`
 

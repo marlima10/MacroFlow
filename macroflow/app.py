@@ -1563,12 +1563,12 @@ class MacroApp(ctk.CTk):
                 self.stop_execute_playback()
             else:
                 self.engine.stop_playback()
-        elif action == "escape":
+        elif action == "close_shortcut":
             self.handle_close_shortcut()
 
     def handle_close_shortcut(self):
         if self.focus_displayof() is None:
-            self.status_var.set("Esc ignorado: MacroFlow nao esta em foco.")
+            self.status_var.set("F2 ignorado: MacroFlow nao esta em foco.")
             return
         self.close()
 
@@ -1691,6 +1691,8 @@ class MacroApp(ctk.CTk):
         for action in shortcuts:
             if action in data:
                 shortcuts[action] = normalize_shortcut(str(data[action]))
+        if shortcuts.get("close") == "esc":
+            shortcuts["close"] = DEFAULT_SHORTCUTS["close"]
         values = list(shortcuts.values())
         if any(not is_valid_shortcut(value) for value in values) or len(set(values)) != len(values):
             return dict(DEFAULT_SHORTCUTS)

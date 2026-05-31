@@ -310,12 +310,13 @@ class MacroEngine:
             self.ui_queue.put(("stop_playback_shortcut", None))
             return True
         if shortcut == self.shortcuts["close"]:
-            self.ui_queue.put(("escape", None))
+            self.ui_queue.put(("close_shortcut", None))
             return True
         return False
 
     def _is_control_shortcut(self, key):
-        return key_to_shortcut(key) in set(self.shortcuts.values())
+        shortcut = key_to_shortcut(key)
+        return shortcut in set(self.shortcuts.values())
 
     def flush_active_keys(self):
         if not self.active_keys:

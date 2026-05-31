@@ -39,7 +39,7 @@ python macro_recorder.py
 - Dê duplo clique em uma celula da tabela para editar tempo, tipo ou dados JSON ali mesmo.
 - Voce tambem pode selecionar um evento e editar pelos campos de baixo.
 - Use o switch `Modo escuro` para alternar entre tema escuro e claro.
-- Pressione `Esc` para fechar quando a janela do MacroFlow estiver em foco.
+- Pressione `F2` para fechar quando a janela do MacroFlow estiver em foco.
 
 Ao reproduzir, o programa executa imediatamente. Use `Loop` se quiser repetir ate pressionar `F10`.
 As macros ficam salvas na pasta `macros`.

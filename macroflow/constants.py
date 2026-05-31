@@ -21,7 +21,7 @@ DEFAULT_SHORTCUTS = {
     "record": "f8",
     "play": "f9",
     "stop_playback": "f10",
-    "close": "esc",
+    "close": "f2",
 }
 
 SHORTCUT_LABELS = {
