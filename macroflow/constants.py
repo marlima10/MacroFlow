@@ -8,6 +8,7 @@ LANGUAGE_DIR = APP_DIR / "language"
 APP_CONFIG_FILE = CONFIG_DIR / "app.json"
 ASSETS_DIR = APP_DIR / "assets"
 APP_ICON_FILE = ASSETS_DIR / "macroflow.ico"
+APP_ICON_PNG_FILE = ASSETS_DIR / "macroflow.png"
 SHORTCUTS_FILE = APP_DIR / "shortcuts.json"
 MACROS_DIR.mkdir(exist_ok=True)
 CONFIG_DIR.mkdir(exist_ok=True)
