@@ -108,6 +108,7 @@ class MacroEngine:
 
         normalized_items = []
         for item in items:
+            metadata = playlist_item_metadata(item)
             if is_matrix_navigation_item(item):
                 normalized_items.append(
                     {
@@ -116,6 +117,7 @@ class MacroEngine:
                         "ordem": item.get("ordem"),
                         "kind": "matrix_navigation",
                         "matrix": dict(item.get("matrix", {})),
+                        **metadata,
                     }
                 )
                 continue
@@ -127,6 +129,7 @@ class MacroEngine:
                         "display_name": item.get("display_name"),
                         "ordem": item.get("ordem"),
                         "events": events,
+                        **metadata,
                     }
                 )
         if not normalized_items:
@@ -196,6 +199,7 @@ class MacroEngine:
                     play_item = resolve_playlist_item_for_repeat(item, repeat_index)
                     current_name = playlist_display_name(play_item)
                     self.ui_queue.put(("playlist_current", current_name))
+                    self.ui_queue.put(("playlist_current_details", playlist_item_details(play_item, current_name)))
                     self.notify(f"Playlist {repeat_index + 1}/{repeats}: {current_name}")
                     self._run_timed_events(play_item["events"])
                 if repeat_index < repeats - 1:
@@ -410,7 +414,25 @@ def resolve_playlist_item_for_repeat(item, repeat_index):
         "name": f"L{target_row}C{target_column}(Matriz)",
         "ordem": item.get("ordem"),
         "events": build_matrix_navigation_events(target_row, target_column, step_delay),
+        **playlist_item_metadata(item),
     }
+
+
+def playlist_item_metadata(item):
+    metadata = {}
+    for key in ("farm_repeat_current", "farm_repeat_total", "farm_source_name"):
+        if key in item:
+            metadata[key] = item[key]
+    return metadata
+
+
+def playlist_item_details(item, current_name):
+    details = {"name": current_name}
+    if "farm_repeat_current" in item and "farm_repeat_total" in item:
+        details["farm_repeat_current"] = item["farm_repeat_current"]
+        details["farm_repeat_total"] = item["farm_repeat_total"]
+        details["farm_source_name"] = item.get("farm_source_name") or current_name
+    return details
 
 
 def playlist_display_name(item):

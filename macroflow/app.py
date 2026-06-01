@@ -1851,13 +1851,16 @@ class MacroApp(ctk.CTk):
                 self.farm_next_var.set(payload)
                 self.log_farm(payload)
                 self.highlight_running_farm_card(payload)
+        elif action == "playlist_current_details":
+            self.handle_playlist_current_details(payload)
         elif action == "playlist_progress":
             if hasattr(self, "playlist_progress_var"):
                 current, total = payload
                 self.playlist_progress_var.set(f"{current} de {total}")
             if hasattr(self, "farm_progress_var"):
                 current, total = payload
-                self.farm_progress_var.set(f"{current} de {total}")
+                if self.active_screen != "farm":
+                    self.farm_progress_var.set(f"{current} de {total}")
         elif action == "play_shortcut":
             if self.active_screen == "execute":
                 self.play_execute_macro()
@@ -2144,6 +2147,21 @@ class MacroApp(ctk.CTk):
         if hasattr(self, "farm_status_var"):
             self.farm_status_var.set(self.t("farm.waiting"))
         self.reset_farm_card_highlights()
+
+    def handle_playlist_current_details(self, payload):
+        if not isinstance(payload, dict):
+            return
+        name = payload.get("farm_source_name") or payload.get("name")
+        if not name:
+            return
+        if self.active_screen == "farm" and hasattr(self, "farm_current_var"):
+            self.farm_current_var.set(name)
+            self.farm_next_var.set(name)
+            self.highlight_running_farm_card(name)
+            current = payload.get("farm_repeat_current")
+            total = payload.get("farm_repeat_total")
+            if current is not None and total is not None:
+                self.farm_progress_var.set(f"{current} de {total}")
 
     def update_farm_timer(self):
         if not self.farm_timer_running or not hasattr(self, "farm_elapsed_var"):
@@ -2954,6 +2972,9 @@ class MacroApp(ctk.CTk):
                 if item.get("kind") == "matrix_navigation":
                     play_item = resolve_playlist_item_for_repeat(item, repeat_index)
                     play_item["display_name"] = item.get("display_name")
+                play_item["farm_repeat_current"] = repeat_index + 1
+                play_item["farm_repeat_total"] = max(0, repeats)
+                play_item["farm_source_name"] = item.get("display_name") or item.get("name")
                 play_item["events"] = self.build_farm_execution_events(
                     play_item.get("events", []),
                     item,
