@@ -112,6 +112,8 @@ class MacroEngine:
                 normalized_items.append(
                     {
                         "name": item.get("name", "Macro"),
+                        "display_name": item.get("display_name"),
+                        "ordem": item.get("ordem"),
                         "kind": "matrix_navigation",
                         "matrix": dict(item.get("matrix", {})),
                     }
@@ -119,7 +121,14 @@ class MacroEngine:
                 continue
             events = normalize_playback_events(item.get("events", []))
             if events:
-                normalized_items.append({"name": item.get("name", "Macro"), "events": events})
+                normalized_items.append(
+                    {
+                        "name": item.get("name", "Macro"),
+                        "display_name": item.get("display_name"),
+                        "ordem": item.get("ordem"),
+                        "events": events,
+                    }
+                )
         if not normalized_items:
             self.notify("Nao ha eventos para reproduzir.")
             return
@@ -185,8 +194,9 @@ class MacroEngine:
                         finish_message = "Playlist interrompida."
                         return
                     play_item = resolve_playlist_item_for_repeat(item, repeat_index)
-                    self.ui_queue.put(("playlist_current", play_item["name"]))
-                    self.notify(f"Playlist {repeat_index + 1}/{repeats}: {play_item['name']}")
+                    current_name = playlist_display_name(play_item)
+                    self.ui_queue.put(("playlist_current", current_name))
+                    self.notify(f"Playlist {repeat_index + 1}/{repeats}: {current_name}")
                     self._run_timed_events(play_item["events"])
                 if repeat_index < repeats - 1:
                     self.notify("Aguardando 2s para iniciar a proxima execucao da playlist...")
@@ -220,6 +230,8 @@ class MacroEngine:
             self._run_key(event)
         elif event_type == "key_hold":
             self._run_key_hold(event)
+        elif event_type == "wait":
+            return
 
     def on_mouse_move(self, x, y):
         if not self.recording:
@@ -396,8 +408,19 @@ def resolve_playlist_item_for_repeat(item, repeat_index):
     step_delay = float(matrix.get("step_delay", DEFAULT_MATRIX_STEP_DELAY))
     return {
         "name": f"L{target_row}C{target_column}(Matriz)",
+        "ordem": item.get("ordem"),
         "events": build_matrix_navigation_events(target_row, target_column, step_delay),
     }
+
+
+def playlist_display_name(item):
+    if item.get("display_name"):
+        return item["display_name"]
+    name = item.get("name", "Macro")
+    order = item.get("ordem")
+    if order is None or order == "":
+        return name
+    return f"[{order}] {name}"
 
 
 def matrix_target_for_repeat(matrix, repeat_index):
