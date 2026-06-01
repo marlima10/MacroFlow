@@ -24,6 +24,7 @@ from .engine import (
     DEFAULT_MATRIX_STEP_DELAY,
     MacroEngine,
     build_matrix_navigation_events,
+    matrix_target_for_repeat,
     normalize_playback_events,
     resolve_playlist_item_for_repeat,
 )
@@ -2979,14 +2980,15 @@ class MacroApp(ctk.CTk):
                     play_item.get("events", []),
                     item,
                     interval_ms / 1000,
+                    repeat_index,
                 )
                 expanded_items.append(play_item)
         return expanded_items
 
-    def build_farm_execution_events(self, events, item, interval_seconds):
+    def build_farm_execution_events(self, events, item, interval_seconds, repeat_index=0):
         events = normalize_playback_events(events)
         if self.is_composite_farm_macro(item):
-            updated, replaced_marker = self.build_composite_farm_events(events, item)
+            updated, replaced_marker = self.build_composite_farm_events(events, item, repeat_index)
             if replaced_marker:
                 base_duration = self.events_duration(updated)
                 if interval_seconds > 0:
@@ -3003,7 +3005,7 @@ class MacroApp(ctk.CTk):
                 updated.append({"type": "wait", "t": round(final_duration + interval_seconds, 4)})
             return updated
         if item.get("posicaoCarro"):
-            row, column = self.farm_position_values(item)
+            row, column = self.farm_car_position_values_for_repeat(item, repeat_index)
             position_events = build_matrix_navigation_events(row, column, DEFAULT_MATRIX_STEP_DELAY)
             updated.extend(self.shift_events(position_events, base_duration + interval_seconds))
             final_duration = self.events_duration(updated)
@@ -3018,7 +3020,7 @@ class MacroApp(ctk.CTk):
     def is_composite_farm_macro(item):
         return bool(item.get("possicaoMarca")) or bool(item.get("posicaoCarro"))
 
-    def build_composite_farm_events(self, events, item):
+    def build_composite_farm_events(self, events, item, repeat_index):
         updated = []
         offset = 0.0
         replaced_marker = False
@@ -3032,17 +3034,17 @@ class MacroApp(ctk.CTk):
                 updated.append(copied)
                 continue
 
-            routine_events = self.composite_marker_events(marker, item)
+            routine_events = self.composite_marker_events(marker, item, repeat_index)
             updated.extend(self.shift_events(routine_events, event_start + offset))
             routine_duration = self.events_duration(routine_events)
             offset += max(0, routine_duration - event_duration)
             replaced_marker = True
         return updated, replaced_marker
 
-    def composite_marker_events(self, marker, item):
+    def composite_marker_events(self, marker, item, repeat_index):
         if marker == "insert":
             return self.build_brand_position_events(item)
-        row, column = self.farm_position_values(item)
+        row, column = self.farm_car_position_values_for_repeat(item, repeat_index)
         return build_matrix_navigation_events(row, column, DEFAULT_MATRIX_STEP_DELAY)
 
     @staticmethod
@@ -3117,6 +3119,10 @@ class MacroApp(ctk.CTk):
         if column < 1:
             raise ValueError(self.t("smart.invalid_column"))
         return row, column
+
+    def farm_car_position_values_for_repeat(self, item, repeat_index):
+        row, column = self.farm_position_values(item)
+        return matrix_target_for_repeat({"target_row": row, "target_column": column}, repeat_index)
 
     @staticmethod
     def shift_events(events, seconds):
