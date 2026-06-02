@@ -34,6 +34,9 @@ from .timeline import render_timeline
 
 
 DEFAULT_MACRO_COLOR = "#07111f"
+HOME_CARD_WIDTH = 205
+HOME_CARD_HEIGHT = 300
+HOME_CARD_ICON_SIZE = 74
 MACRO_COLOR_PALETTE = (
     DEFAULT_MACRO_COLOR,
     "#14395c",
@@ -44,6 +47,37 @@ MACRO_COLOR_PALETTE = (
     "#78350f",
     "#334155",
 )
+
+
+def patch_customtkinter_entry_placeholder():
+    if getattr(ctk.CTkEntry, "_macroflow_placeholder_patch", False):
+        return
+    original_activate_placeholder = ctk.CTkEntry._activate_placeholder
+    original_textvariable_callback = ctk.CTkEntry._textvariable_callback
+
+    def should_ignore_destroyed_widget_error(exc):
+        return isinstance(exc, tk.TclError) and "invalid command name" in str(exc)
+
+    def safe_activate_placeholder(self):
+        try:
+            original_activate_placeholder(self)
+        except tk.TclError as exc:
+            if not should_ignore_destroyed_widget_error(exc):
+                raise
+
+    def safe_textvariable_callback(self, *args):
+        try:
+            original_textvariable_callback(self, *args)
+        except tk.TclError as exc:
+            if not should_ignore_destroyed_widget_error(exc):
+                raise
+
+    ctk.CTkEntry._activate_placeholder = safe_activate_placeholder
+    ctk.CTkEntry._textvariable_callback = safe_textvariable_callback
+    ctk.CTkEntry._macroflow_placeholder_patch = True
+
+
+patch_customtkinter_entry_placeholder()
 
 
 class MacroApp(ctk.CTk):
@@ -571,7 +605,7 @@ class MacroApp(ctk.CTk):
         header.grid_columnconfigure(1, weight=1)
         ctk.CTkButton(
             header,
-            text="<",
+            text="‹",
             width=38,
             height=38,
             corner_radius=19,
@@ -582,27 +616,31 @@ class MacroApp(ctk.CTk):
         ).grid(row=0, column=0, padx=(0, 14), sticky="w")
         ctk.CTkLabel(
             header,
-            text=self.t("farm.title"),
+            text=f"◆  {self.t('farm.title')}",
             font=ctk.CTkFont(size=24, weight="bold"),
         ).grid(row=0, column=1)
 
         controls = self.create_execute_card(self.farm_view)
         controls.grid(row=1, column=0, padx=(18, 10), pady=(0, 12), sticky="ew")
         controls.grid_columnconfigure(3, weight=1)
-        ctk.CTkLabel(controls, text=self.t("farm.interval")).grid(row=0, column=0, padx=(22, 10), pady=14)
+        ctk.CTkLabel(
+            controls,
+            text=f"⏱  {self.t('farm.interval')}",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).grid(row=0, column=0, padx=(22, 10), pady=14)
         self.farm_interval_var = tk.StringVar(value=str(self.farm_config.get("interval_ms", 1000)))
         ctk.CTkEntry(controls, width=112, textvariable=self.farm_interval_var).grid(row=0, column=1, pady=14)
         ctk.CTkLabel(controls, text="ms").grid(row=0, column=2, padx=(8, 24), pady=14)
         self.farm_play_button = ctk.CTkButton(
             controls,
-            text=f"{shortcut_label(self.shortcuts['play_playlist'])} {self.t('farm.play')}",
+            text=f"▶  {shortcut_label(self.shortcuts['play_playlist'])} {self.t('farm.play')}",
             height=38,
             command=self.play_farm,
         )
         self.farm_play_button.grid(row=0, column=3, padx=(0, 12), pady=14, sticky="ew")
         self.farm_stop_button = ctk.CTkButton(
             controls,
-            text=f"{shortcut_label(self.shortcuts['stop_playlist'])} {self.t('farm.stop')}",
+            text=f"■  {shortcut_label(self.shortcuts['stop_playlist'])} {self.t('farm.stop')}",
             height=38,
             fg_color="#5c5f66",
             hover_color="#4d5056",
@@ -618,9 +656,9 @@ class MacroApp(ctk.CTk):
         self.farm_progress_var = tk.StringVar(value="-")
         for column, (label, variable, size) in enumerate(
             (
-                (self.t("farm.current_macro").upper(), self.farm_current_var, 16),
-                (self.t("farm.playlist_time").upper(), self.farm_elapsed_var, 24),
-                (self.t("farm.repetition").upper(), self.farm_progress_var, 20),
+                (f"●  {self.t('farm.current_macro').upper()}", self.farm_current_var, 16),
+                (f"⏱  {self.t('farm.playlist_time').upper()}", self.farm_elapsed_var, 24),
+                (f"↻  {self.t('farm.repetition').upper()}", self.farm_progress_var, 20),
             )
         ):
             ctk.CTkLabel(
@@ -649,7 +687,7 @@ class MacroApp(ctk.CTk):
         self.farm_status_var = tk.StringVar(value=self.t("farm.waiting"))
         self.farm_next_var = tk.StringVar(value="-")
         self.farm_total_var = tk.StringVar(value="0")
-        ctk.CTkLabel(details, text=self.t("farm.details"), font=ctk.CTkFont(size=15, weight="bold")).grid(
+        ctk.CTkLabel(details, text=f"☰  {self.t('farm.details')}", font=ctk.CTkFont(size=15, weight="bold")).grid(
             row=0, column=0, columnspan=2, padx=24, pady=(20, 14), sticky="w"
         )
         for row, (label, var) in enumerate(
@@ -669,7 +707,7 @@ class MacroApp(ctk.CTk):
         log_card.grid(row=1, column=0, sticky="nsew")
         log_card.grid_columnconfigure(0, weight=1)
         log_card.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(log_card, text=self.t("farm.log"), font=ctk.CTkFont(size=15, weight="bold")).grid(
+        ctk.CTkLabel(log_card, text=f"▣  {self.t('farm.log')}", font=ctk.CTkFont(size=15, weight="bold")).grid(
             row=0, column=0, padx=18, pady=(18, 8), sticky="w"
         )
         self.farm_log = ctk.CTkTextbox(log_card, width=300, height=300)
@@ -689,7 +727,7 @@ class MacroApp(ctk.CTk):
 
         ctk.CTkButton(
             header,
-            text="<",
+            text="‹",
             width=42,
             height=42,
             corner_radius=21,
@@ -736,7 +774,7 @@ class MacroApp(ctk.CTk):
             corner_radius=16,
             fg_color=accent,
             text_color="#ffffff",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ctk.CTkFont(size=17, weight="bold"),
         ).grid(row=0, column=0, rowspan=2, padx=(18, 14), pady=18)
         ctk.CTkLabel(section, text=title, font=ctk.CTkFont(size=15, weight="bold")).grid(
             row=0, column=1, sticky="sw", pady=(18, 0)
@@ -748,7 +786,7 @@ class MacroApp(ctk.CTk):
 
     def create_language_settings_card(self):
         section = self.create_settings_section(
-            1, self.t("settings.language_title"), self.t("settings.language_description"), "#1877d8", "G"
+            1, self.t("settings.language_title"), self.t("settings.language_description"), "#1877d8", "◎"
         )
         options = ctk.CTkFrame(section, fg_color="transparent")
         options.grid(row=2, column=1, columnspan=2, padx=(0, 50), pady=(0, 18), sticky="ew")
@@ -774,7 +812,7 @@ class MacroApp(ctk.CTk):
 
         radio = ctk.CTkLabel(
             option,
-            text="*" if selected else "o",
+            text="●" if selected else "○",
             text_color="#168bff" if selected else ("gray45", "gray60"),
             font=ctk.CTkFont(size=16, weight="bold"),
         )
@@ -793,7 +831,7 @@ class MacroApp(ctk.CTk):
 
     def create_theme_settings_card(self):
         section = self.create_settings_section(
-            2, self.t("settings.theme_title"), self.t("settings.theme_description"), "#5842a6", "T"
+            2, self.t("settings.theme_title"), self.t("settings.theme_description"), "#5842a6", "◐"
         )
         values = [self.t("settings.theme_dark"), self.t("settings.theme_light")]
         current_value = self.t("settings.theme_dark") if self.theme_var.get() == "Dark" else self.t("settings.theme_light")
@@ -807,7 +845,7 @@ class MacroApp(ctk.CTk):
 
     def create_startup_settings_card(self):
         section = self.create_settings_section(
-            3, self.t("settings.startup_title"), self.t("settings.startup_description"), "#16a34a", "P"
+            3, self.t("settings.startup_title"), self.t("settings.startup_description"), "#16a34a", "⏻"
         )
         ctk.CTkSwitch(
             section,
@@ -818,7 +856,7 @@ class MacroApp(ctk.CTk):
 
     def create_farm_mode_settings_card(self):
         section = self.create_settings_section(
-            4, self.t("settings.farm_mode_title"), self.t("settings.farm_mode_description"), "#eab308", "F"
+            4, self.t("settings.farm_mode_title"), self.t("settings.farm_mode_description"), "#eab308", "◆"
         )
         ctk.CTkSwitch(
             section,
@@ -829,7 +867,7 @@ class MacroApp(ctk.CTk):
 
     def create_shortcuts_settings_card(self):
         section = self.create_settings_section(
-            5, self.t("settings.shortcuts_title"), self.t("settings.shortcuts_description"), "#ef8a2f", "K"
+            5, self.t("settings.shortcuts_title"), self.t("settings.shortcuts_description"), "#ef8a2f", "⌘"
         )
         ctk.CTkButton(
             section,
@@ -842,7 +880,7 @@ class MacroApp(ctk.CTk):
         section = self.create_settings_section(
             6, self.t("settings.about_title"), self.t("settings.about_description"), "#1877d8", "i"
         )
-        ctk.CTkLabel(section, text=">", font=ctk.CTkFont(size=22), text_color=("gray35", "gray72")).grid(
+        ctk.CTkLabel(section, text="›", font=ctk.CTkFont(size=22), text_color=("gray35", "gray72")).grid(
             row=0, column=3, rowspan=2, padx=(18, 28), pady=18
         )
 
@@ -1009,7 +1047,7 @@ class MacroApp(ctk.CTk):
                 column=0,
                 title=self.t("home.create_title"),
                 description=self.t("home.create_description"),
-                icon="[=]",
+                icon="✎",
                 accent="#168bff",
                 command=self.open_macro_editor,
             )
@@ -1018,7 +1056,7 @@ class MacroApp(ctk.CTk):
                 column=1,
                 title=self.t("home.smart_title"),
                 description=self.t("home.smart_description"),
-                icon="AI",
+                icon="✦",
                 accent="#ef8a2f",
                 command=self.open_smart_macro_editor,
             )
@@ -1027,7 +1065,7 @@ class MacroApp(ctk.CTk):
                 column=2,
                 title=self.t("home.execute_title"),
                 description=self.t("home.execute_description"),
-                icon=">",
+                icon="▶",
                 accent="#62df45",
                 command=self.open_execute_screen,
             )
@@ -1042,7 +1080,7 @@ class MacroApp(ctk.CTk):
             column=farm_column,
             title=self.t("home.farm_title"),
             description=self.t("home.farm_description"),
-            icon="22B",
+            icon="◆",
             accent="#eab308",
             command=self.open_farm_subaru_impreza_22b,
         )
@@ -1052,7 +1090,7 @@ class MacroApp(ctk.CTk):
                 column=playlist_column,
                 title=self.t("home.playlist_title"),
                 description=self.t("home.playlist_description"),
-                icon="PL",
+                icon="☰",
                 accent="#a855f7",
                 command=self.open_macro_playlist,
             )
@@ -1070,7 +1108,7 @@ class MacroApp(ctk.CTk):
 
         ctk.CTkButton(
             self.home_view,
-            text=self.t("home.settings"),
+            text=f"⚙  {self.t('home.settings')}",
             height=42,
             fg_color=("#eef3f8", "#07111f"),
             hover_color=("#dfe9f4", "#0d1b2e"),
@@ -1083,19 +1121,40 @@ class MacroApp(ctk.CTk):
     def create_home_card(self, row, column, title, description, icon, accent, command):
         card = ctk.CTkFrame(
             self.home_view,
-            width=205,
-            height=300,
+            width=HOME_CARD_WIDTH,
+            height=HOME_CARD_HEIGHT,
             corner_radius=16,
             fg_color=("#eef6ff", "#031123"),
             border_width=2,
             border_color=accent,
         )
-        card.grid(row=row, column=column, padx=8, pady=0, sticky="nsew")
+        card.grid(row=row, column=column, padx=8, pady=0)
         card.grid_propagate(False)
         card.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(card, text=icon, font=ctk.CTkFont(size=46, weight="bold"), text_color=accent).grid(
-            row=0, column=0, padx=18, pady=(30, 16)
+        icon_badge = ctk.CTkFrame(
+            card,
+            width=HOME_CARD_ICON_SIZE,
+            height=HOME_CARD_ICON_SIZE,
+            corner_radius=HOME_CARD_ICON_SIZE // 2,
+            fg_color=accent,
+        )
+        icon_badge.grid(row=0, column=0, padx=18, pady=(30, 16))
+        icon_badge.grid_propagate(False)
+        ctk.CTkLabel(
+            icon_badge,
+            text=icon,
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color="#ffffff",
+        ).place(relx=0.5, rely=0.5, anchor="center")
+        ctk.CTkLabel(
+            card,
+            text="",
+            width=HOME_CARD_WIDTH - 42,
+            height=1,
+            fg_color=accent,
+        ).grid(
+            row=1, column=0, padx=21, pady=(0, 14)
         )
         ctk.CTkLabel(
             card,
@@ -1104,7 +1163,7 @@ class MacroApp(ctk.CTk):
             wraplength=175,
             justify="center",
         ).grid(
-            row=1, column=0, padx=18, pady=(0, 10)
+            row=2, column=0, padx=18, pady=(0, 10)
         )
         ctk.CTkLabel(
             card,
@@ -1113,10 +1172,10 @@ class MacroApp(ctk.CTk):
             text_color=("gray25", "gray78"),
             wraplength=175,
             justify="center",
-        ).grid(row=2, column=0, padx=18, pady=(0, 22))
+        ).grid(row=3, column=0, padx=18, pady=(0, 22))
         ctk.CTkButton(
             card,
-            text=">",
+            text="›",
             width=46,
             height=46,
             corner_radius=23,
@@ -1124,7 +1183,7 @@ class MacroApp(ctk.CTk):
             hover_color=accent,
             font=ctk.CTkFont(size=22, weight="bold"),
             command=command,
-        ).grid(row=3, column=0, pady=(0, 24))
+        ).grid(row=4, column=0, pady=(0, 24))
 
     def create_sidebar(self):
         self.sidebar = ctk.CTkFrame(
@@ -2978,6 +3037,39 @@ class MacroApp(ctk.CTk):
                 fg_color="#06402B" if is_running else ("#eef6ff", "#07111f"),
                 border_color=self.normalized_macro_color(item),
             )
+            if is_running:
+                self.scroll_farm_card_into_view(card)
+
+    def scroll_farm_card_into_view(self, card):
+        if not hasattr(self, "farm_macro_scroll"):
+            return
+        self.after(50, lambda selected_card=card: self.perform_farm_card_scroll(selected_card))
+
+    def perform_farm_card_scroll(self, card):
+        if not card.winfo_exists() or not hasattr(self, "farm_macro_scroll"):
+            return
+        canvas = getattr(self.farm_macro_scroll, "_parent_canvas", None)
+        if canvas is None or not canvas.winfo_exists():
+            return
+
+        self.farm_macro_scroll.update_idletasks()
+        canvas.update_idletasks()
+        scroll_region = canvas.bbox("all")
+        if not scroll_region:
+            return
+
+        content_height = max(1, scroll_region[3] - scroll_region[1])
+        visible_height = max(1, canvas.winfo_height())
+        if content_height <= visible_height:
+            canvas.yview_moveto(0)
+            return
+
+        card_top = card.winfo_y()
+        card_height = max(1, card.winfo_height())
+        centered_top = card_top - max(0, (visible_height - card_height) // 2)
+        max_scroll = max(1, content_height - visible_height)
+        fraction = max(0, min(1, centered_top / max_scroll))
+        canvas.yview_moveto(fraction)
 
     def reset_farm_card_highlights(self):
         for item in getattr(self, "farm_items", []):
