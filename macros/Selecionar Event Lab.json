@@ -1,0 +1,282 @@
+{
+  "version": 1,
+  "name": "Selecionar Event Lab",
+  "updated_at": "2026-06-02 15:05:52",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 2.3421,
+      "duration": 0.152
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 4.4081,
+      "duration": 0.215
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 5.5841,
+      "duration": 0.1751
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 6.6362,
+      "duration": 0.147
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 7.7411,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 9.5081,
+      "duration": 0.1611
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 10.8412,
+      "duration": 0.157
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 17.6891,
+      "duration": 0.17
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 18.8792,
+      "duration": 0.1919
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 19.9932,
+      "duration": 0.1739
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 21.0661,
+      "duration": 0.1611
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 22.1261,
+      "duration": 0.134
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 23.1631,
+      "duration": 0.157
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 24.3661,
+      "duration": 0.1571
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 25.82,
+      "duration": 0.1561
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 28.9502,
+      "duration": 0.2059
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 34.0181,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 38.3791,
+      "duration": 0.2371
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 54.6922,
+      "duration": 0.129
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 55.7381,
+      "duration": 0.152
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 58.6002,
+      "duration": 0.1479
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 60.7242,
+      "duration": 0.2009
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 61.5242,
+      "duration": 0.2059
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 62.3521,
+      "duration": 0.17
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "left"
+      },
+      "t": 64.6282,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "left"
+      },
+      "t": 65.4601,
+      "duration": 0.166
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "left"
+      },
+      "t": 66.5562,
+      "duration": 0.1919
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 69.4452,
+      "duration": 0.1379
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 71.457,
+      "duration": 0.148
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 74.4451,
+      "duration": 0.1971
+    }
+  ],
+  "ordem": 3,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}

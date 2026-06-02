@@ -1,0 +1,300 @@
+{
+  "version": 1,
+  "name": "Gastar maestria (Comprar Roleta)",
+  "updated_at": "2026-06-02 14:46:47",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "backspace"
+      },
+      "t": 1.7226,
+      "duration": 0.1341
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "insert"
+      },
+      "t": 2.9436,
+      "duration": 0.13
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 4.1376,
+      "duration": 0.192
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "delete"
+      },
+      "t": 5.4726,
+      "duration": 0.0982
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 7.0686,
+      "duration": 0.196
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 8.4768,
+      "duration": 0.2898
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 19.4606,
+      "duration": 0.2011
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 21.1806,
+      "duration": 0.148
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 21.8827,
+      "duration": 0.1609
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 23.4826,
+      "duration": 0.13
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 23.9246,
+      "duration": 0.17
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 24.4256,
+      "duration": 0.1611
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 24.9617,
+      "duration": 0.1559
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 25.4435,
+      "duration": 0.1701
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 25.9266,
+      "duration": 0.1561
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 26.3688,
+      "duration": 0.1158
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 27.3076,
+      "duration": 0.196
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 29.5726,
+      "duration": 0.201
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "right"
+      },
+      "t": 30.8056,
+      "duration": 0.112
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 31.3286,
+      "duration": 0.174
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 32.0076,
+      "duration": 0.152
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 32.4367,
+      "duration": 0.1519
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 33.1476,
+      "duration": 0.1611
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 33.6436,
+      "duration": 0.192
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 34.3756,
+      "duration": 0.1752
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 34.8806,
+      "duration": 0.2011
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "left"
+      },
+      "t": 35.5776,
+      "duration": 0.134
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 36.0338,
+      "duration": 0.1918
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 37.3835,
+      "duration": 0.1472
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 39.7696,
+      "duration": 0.17
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 41.2526,
+      "duration": 0.125
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 43.2147,
+      "duration": 0.1779
+    }
+  ],
+  "ordem": 11,
+  "possicaoMarca": true,
+  "posicaoCarro": true,
+  "ativarRepeticao": false,
+  "cor": "#14532d"
+}

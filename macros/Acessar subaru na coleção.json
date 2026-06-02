@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "name": "Acessar subaru na coleção",
+  "updated_at": "2026-06-02 14:43:55",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 2.4876,
+      "duration": 0.1569
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 3.8815,
+      "duration": 0.1884
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "right"
+      },
+      "t": 5.2975,
+      "duration": 0.1691
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 6.5707,
+      "duration": 0.1739
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 8.0045,
+      "duration": 0.169
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 9.2905,
+      "duration": 0.197
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "backspace"
+      },
+      "t": 11.0865,
+      "duration": 0.169
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 12.5516,
+      "duration": 0.1339
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 13.3915,
+      "duration": 0.1159
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 13.7704,
+      "duration": 0.0991
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "right"
+      },
+      "t": 14.5885,
+      "duration": 0.129
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "right"
+      },
+      "t": 15.1555,
+      "duration": 0.1339
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "right"
+      },
+      "t": 15.7946,
+      "duration": 0.0889
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 16.4375,
+      "duration": 0.1249
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 18.8945,
+      "duration": 0.165
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 20.5385,
+      "duration": 0.1251
+    }
+  ],
+  "ordem": 7,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}

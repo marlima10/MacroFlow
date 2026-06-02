@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "Sair farm maestria",
+  "updated_at": "2026-06-02 14:42:20",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 2.1719,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 2.874,
+      "duration": 0.1429
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 3.581,
+      "duration": 0.1519
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 4.3229,
+      "duration": 0.129
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 5.4048,
+      "duration": 0.1521
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 6.8619,
+      "duration": 0.188
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "char",
+        "value": "0"
+      },
+      "t": 14.8251,
+      "duration": 0.1119
+    }
+  ],
+  "ordem": 5,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}

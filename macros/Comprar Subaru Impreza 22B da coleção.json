@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "name": "Comprar Subaru Impreza 22B da coleção",
+  "updated_at": "2026-06-02 14:44:41",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "space"
+      },
+      "t": 2.8935,
+      "duration": 0.1483
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 4.0785,
+      "duration": 0.138
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 5.1517,
+      "duration": 0.1289
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 6.6706,
+      "duration": 0.125
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 8.1546,
+      "duration": 0.125
+    }
+  ],
+  "ordem": 8,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#14532d"
+}

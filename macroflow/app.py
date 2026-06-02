@@ -122,6 +122,7 @@ class MacroApp(ctk.CTk):
         self.order_var = tk.StringVar()
         self.brand_position_var = tk.BooleanVar(value=False)
         self.car_position_var = tk.BooleanVar(value=False)
+        self.repeat_enabled_var = tk.BooleanVar(value=False)
         self.color_var = tk.StringVar(value=DEFAULT_MACRO_COLOR)
         self.cell_editor = None
         self.playback_blink_on = False
@@ -194,7 +195,7 @@ class MacroApp(ctk.CTk):
                 "name": item.get("name"),
                 "ordem": item.get("ordem"),
                 "cor": self.normalized_macro_color(item),
-                "repeticoes": item["repeats_var"].get(),
+                "repeticoes": item["repeats_var"].get() if item.get("ativarRepeticao") else 1,
                 "linha": item["row_var"].get(),
                 "coluna": item["column_var"].get(),
                 "cima": item["up_var"].get(),
@@ -204,6 +205,7 @@ class MacroApp(ctk.CTk):
                 "ignorarItem": bool(item["ignore_var"].get()),
                 "possicaoMarca": bool(item.get("possicaoMarca", False)),
                 "posicaoCarro": bool(item.get("posicaoCarro", False)),
+                "ativarRepeticao": bool(item.get("ativarRepeticao", False)),
             }
         FARM_CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         self.farm_config = data
@@ -1351,7 +1353,7 @@ class MacroApp(ctk.CTk):
 
         metadata = ctk.CTkFrame(header, fg_color="transparent")
         metadata.grid(row=2, column=0, columnspan=2, padx=18, pady=(0, 12), sticky="ew")
-        metadata.grid_columnconfigure(6, weight=1)
+        metadata.grid_columnconfigure(7, weight=1)
 
         ctk.CTkLabel(metadata, text=self.t("macro.order")).grid(row=0, column=0, padx=(0, 8), sticky="w")
         ctk.CTkEntry(
@@ -1372,9 +1374,14 @@ class MacroApp(ctk.CTk):
             variable=self.car_position_var,
             command=self.update_composite_hint,
         ).grid(row=0, column=3, padx=(0, 18), sticky="w")
-        ctk.CTkLabel(metadata, text=self.t("macro.color")).grid(row=0, column=4, padx=(0, 8), sticky="w")
+        ctk.CTkCheckBox(
+            metadata,
+            text=self.t("macro.repeat_enabled"),
+            variable=self.repeat_enabled_var,
+        ).grid(row=0, column=4, padx=(0, 18), sticky="w")
+        ctk.CTkLabel(metadata, text=self.t("macro.color")).grid(row=0, column=5, padx=(0, 8), sticky="w")
         self.color_palette_frame = ctk.CTkFrame(metadata, fg_color="transparent")
-        self.color_palette_frame.grid(row=0, column=5, sticky="w")
+        self.color_palette_frame.grid(row=0, column=6, sticky="w")
         self.color_buttons = []
         for index, color in enumerate(MACRO_COLOR_PALETTE):
             button = ctk.CTkButton(
@@ -1402,7 +1409,7 @@ class MacroApp(ctk.CTk):
             fg_color=("#e8f1ff", "#0b1f35"),
             text_color=("#23415f", "#b8d7ff"),
         )
-        self.composite_hint_label.grid(row=1, column=0, columnspan=7, pady=(10, 0), sticky="ew")
+        self.composite_hint_label.grid(row=1, column=0, columnspan=8, pady=(10, 0), sticky="ew")
         self.update_composite_hint()
 
         actions = ctk.CTkFrame(header, fg_color="transparent")
@@ -1797,6 +1804,7 @@ class MacroApp(ctk.CTk):
             "ordem": None,
             "possicaoMarca": False,
             "posicaoCarro": False,
+            "ativarRepeticao": False,
             "cor": DEFAULT_MACRO_COLOR,
             "matrix": {
                 "start_row": 1,
@@ -2327,6 +2335,7 @@ class MacroApp(ctk.CTk):
         self.order_var.set("")
         self.brand_position_var.set(False)
         self.car_position_var.set(False)
+        self.repeat_enabled_var.set(False)
         self.color_var.set(DEFAULT_MACRO_COLOR)
         self.update_color_palette_selection()
         self.update_composite_hint()
@@ -2468,6 +2477,7 @@ class MacroApp(ctk.CTk):
             "ordem": order,
             "possicaoMarca": bool(self.brand_position_var.get()),
             "posicaoCarro": bool(self.car_position_var.get()),
+            "ativarRepeticao": bool(self.repeat_enabled_var.get()),
             "cor": self.normalized_macro_color({"cor": self.color_var.get()}),
         }
 
@@ -2476,6 +2486,7 @@ class MacroApp(ctk.CTk):
         self.order_var.set("" if order is None else str(order))
         self.brand_position_var.set(bool(data.get("possicaoMarca", False)))
         self.car_position_var.set(bool(data.get("posicaoCarro", False)))
+        self.repeat_enabled_var.set(bool(data.get("ativarRepeticao", False)))
         self.color_var.set(self.normalized_macro_color(data))
         self.update_color_palette_selection()
         self.update_composite_hint()
@@ -2889,6 +2900,7 @@ class MacroApp(ctk.CTk):
                 "cor": self.normalized_macro_color(data),
                 "possicaoMarca": bool(data.get("possicaoMarca", False)),
                 "posicaoCarro": bool(data.get("posicaoCarro", False)),
+                "ativarRepeticao": bool(data.get("ativarRepeticao", False)),
                 "kind": data.get("kind"),
                 "matrix": data.get("matrix"),
                 "events": data.get("events", []),
@@ -2946,15 +2958,16 @@ class MacroApp(ctk.CTk):
                 font=ctk.CTkFont(size=12, weight="bold"),
             ).pack(side="left", padx=(10, 0))
 
-        repeats = ctk.CTkFrame(row, fg_color="transparent")
-        repeats.grid(row=0, column=2, padx=(12, 18), pady=(16, 8), sticky="e")
-        ctk.CTkLabel(repeats, text=self.t("farm.repeats")).pack(side="left", padx=(0, 10))
-        repeat_entry = ctk.CTkEntry(repeats, width=120, textvariable=item["repeats_var"])
-        repeat_entry.pack(side="left")
-        repeat_entry.bind("<KeyRelease>", lambda _event=None: self.update_farm_total())
-        ctk.CTkLabel(repeats, text=self.t("farm.ignore_item")).pack(side="left", padx=(16, 8))
+        actions = ctk.CTkFrame(row, fg_color="transparent")
+        actions.grid(row=0, column=2, padx=(12, 18), pady=(16, 8), sticky="e")
+        if item.get("ativarRepeticao"):
+            ctk.CTkLabel(actions, text=self.t("farm.repeats")).pack(side="left", padx=(0, 10))
+            repeat_entry = ctk.CTkEntry(actions, width=120, textvariable=item["repeats_var"])
+            repeat_entry.pack(side="left")
+            repeat_entry.bind("<KeyRelease>", lambda _event=None: self.update_farm_total())
+        ctk.CTkLabel(actions, text=self.t("farm.ignore_item")).pack(side="left", padx=(16, 8))
         ignore_button = ctk.CTkButton(
-            repeats,
+            actions,
             width=92,
             height=28,
             corner_radius=6,
@@ -2965,11 +2978,15 @@ class MacroApp(ctk.CTk):
         self.update_farm_ignore_card(item)
 
         if item["possicaoMarca"]:
-            ctk.CTkLabel(row, text=self.t("farm.brand_position"), font=ctk.CTkFont(size=14, weight="bold")).grid(
-                row=1, column=1, padx=(0, 18), pady=(4, 16), sticky="w"
-            )
-            position = ctk.CTkFrame(row, fg_color="transparent")
-            position.grid(row=1, column=2, padx=(12, 18), pady=(4, 16), sticky="e")
+            brand_card = self.create_farm_position_subcard(row)
+            brand_card.grid(row=1, column=1, columnspan=2, padx=(0, 18), pady=(4, 10), sticky="ew")
+            ctk.CTkLabel(
+                brand_card,
+                text=self.t("farm.brand_position"),
+                font=ctk.CTkFont(size=14, weight="bold"),
+            ).grid(row=0, column=0, padx=14, pady=12, sticky="w")
+            position = ctk.CTkFrame(brand_card, fg_color="transparent")
+            position.grid(row=0, column=1, padx=14, pady=12, sticky="e")
             for label_key, variable in (
                 ("farm.up", item["up_var"]),
                 ("farm.down", item["down_var"]),
@@ -2981,15 +2998,31 @@ class MacroApp(ctk.CTk):
 
         if item["posicaoCarro"]:
             row_index = 2 if item["possicaoMarca"] else 1
-            ctk.CTkLabel(row, text=self.t("farm.car_position"), font=ctk.CTkFont(size=14, weight="bold")).grid(
-                row=row_index, column=1, padx=(0, 18), pady=(4, 16), sticky="w"
-            )
-            position = ctk.CTkFrame(row, fg_color="transparent")
-            position.grid(row=row_index, column=2, padx=(12, 18), pady=(4, 16), sticky="e")
+            car_card = self.create_farm_position_subcard(row)
+            car_card.grid(row=row_index, column=1, columnspan=2, padx=(0, 18), pady=(4, 10), sticky="ew")
+            ctk.CTkLabel(
+                car_card,
+                text=self.t("farm.car_position"),
+                font=ctk.CTkFont(size=14, weight="bold"),
+            ).grid(row=0, column=0, padx=14, pady=12, sticky="w")
+            position = ctk.CTkFrame(car_card, fg_color="transparent")
+            position.grid(row=0, column=1, padx=14, pady=12, sticky="e")
             ctk.CTkLabel(position, text=self.t("farm.row")).pack(side="left", padx=(0, 8))
             ctk.CTkEntry(position, width=76, textvariable=item["row_var"]).pack(side="left", padx=(0, 16))
             ctk.CTkLabel(position, text=self.t("farm.column")).pack(side="left", padx=(0, 8))
             ctk.CTkEntry(position, width=76, textvariable=item["column_var"]).pack(side="left")
+
+    def create_farm_position_subcard(self, parent):
+        card = ctk.CTkFrame(
+            parent,
+            corner_radius=8,
+            fg_color=("#f8fbff", "#102033"),
+            border_width=1,
+            border_color=("#d8e0ea", "#20324c"),
+        )
+        card.grid_columnconfigure(0, weight=1)
+        card.grid_columnconfigure(1, weight=0)
+        return card
 
     def update_farm_total(self):
         total = 0
@@ -2997,11 +3030,19 @@ class MacroApp(ctk.CTk):
             if item["ignore_var"].get():
                 continue
             try:
-                total += max(0, int(item["repeats_var"].get()))
+                total += self.farm_item_repeats(item)
             except ValueError:
                 pass
         if hasattr(self, "farm_total_var"):
             self.farm_total_var.set(str(total))
+
+    def farm_item_repeats(self, item):
+        if not item.get("ativarRepeticao"):
+            return 1
+        try:
+            return max(0, int(item["repeats_var"].get()))
+        except ValueError:
+            raise ValueError(self.t("farm.invalid_repeats")) from None
 
     def toggle_farm_ignore_item(self, item):
         item["ignore_var"].set(not item["ignore_var"].get())
@@ -3103,10 +3144,7 @@ class MacroApp(ctk.CTk):
         for item in self.farm_items:
             if item["ignore_var"].get():
                 continue
-            try:
-                repeats = int(item["repeats_var"].get())
-            except ValueError:
-                raise ValueError(self.t("farm.invalid_repeats")) from None
+            repeats = self.farm_item_repeats(item)
             for repeat_index in range(max(0, repeats)):
                 play_item = dict(item)
                 if item.get("kind") == "matrix_navigation":

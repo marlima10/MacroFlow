@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "name": "Pegar Subaru Impreza 22B",
+  "updated_at": "2026-06-01 18:29:46",
+  "events": [
+    {
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "duration": 0.1338,
+      "t": 3.3278,
+      "type": "key_hold"
+    },
+    {
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "duration": 0.1351,
+      "t": 6.1495,
+      "type": "key_hold"
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 9.1045,
+      "duration": 0.143
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "backspace"
+      },
+      "t": 12.5316,
+      "duration": 0.143
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "insert"
+      },
+      "t": 14.4985,
+      "duration": 0.143
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 16.6165,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "delete"
+      },
+      "t": 18.4388,
+      "duration": 0.1297
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 20.6165,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 21.6165,
+      "duration": 0.139
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "0"
+      },
+      "t": 29.6165,
+      "duration": 0.139
+    }
+  ],
+  "ordem": 2,
+  "possicaoMarca": true,
+  "posicaoCarro": true,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}

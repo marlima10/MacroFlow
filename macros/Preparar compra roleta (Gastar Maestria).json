@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "Preparar compra roleta (Gastar Maestria)",
+  "updated_at": "2026-06-02 14:45:31",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 2.2486,
+      "duration": 0.1381
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 3.5258,
+      "duration": 0.1429
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 6.0008,
+      "duration": 0.1878
+    }
+  ],
+  "ordem": 10,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}

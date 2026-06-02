@@ -127,6 +127,7 @@
     "order_placeholder": "Ex: 1",
     "brand_position": "Brand position",
     "car_position": "Car position",
+    "repeat_enabled": "Enable repeat",
     "color": "Color",
     "composite_hint": "Composite macro: when running in the Farm screen, Insert is replaced by the Brand position routine and Delete by the Car position routine. The marker key is not executed; the macro continues normally after the routine.",
     "invalid_order_title": "Invalid order",

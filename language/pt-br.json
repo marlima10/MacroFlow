@@ -127,6 +127,7 @@
     "order_placeholder": "Ex: 1",
     "brand_position": "Posição da marca",
     "car_position": "Posição do carro",
+    "repeat_enabled": "Ativar repetição",
     "color": "Cor",
     "composite_hint": "Macro composto: ao executar na tela Farm, Insert é substituído pela rotina de Posição da marca e Delete pela rotina de Posição do carro. A tecla marcador não é executada; o macro continua normalmente depois da rotina.",
     "invalid_order_title": "Ordem inválida",

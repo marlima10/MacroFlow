@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "name": "Iniciar Jogo com carro padrão",
+  "updated_at": "2026-06-02 14:29:14",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 3.5928,
+      "duration": 0.1658
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 16.8499,
+      "duration": 0.152
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 50.9107,
+      "duration": 0.17
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "page_down"
+      },
+      "t": 52.0367,
+      "duration": 0.179
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 53.7487,
+      "duration": 0.1881
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "right"
+      },
+      "t": 55.9267,
+      "duration": 0.196
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 58.8188,
+      "duration": 0.183
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 61.2288,
+      "duration": 0.125
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 66.4367,
+      "duration": 0.161
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "char",
+        "value": "0"
+      },
+      "t": 76.5651,
+      "duration": 0.1829
+    }
+  ],
+  "ordem": 1,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}

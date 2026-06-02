@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "name": "Sair da Coleção",
+  "updated_at": "2026-06-02 14:44:50",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 2.4395,
+      "duration": 0.179
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 4.0216,
+      "duration": 0.174
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 5.6848,
+      "duration": 0.1957
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "esc"
+      },
+      "t": 7.2125,
+      "duration": 0.1561
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "up"
+      },
+      "t": 10.6886,
+      "duration": 0.112
+    }
+  ],
+  "ordem": 9,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": false,
+  "cor": "#07111f"
+}
