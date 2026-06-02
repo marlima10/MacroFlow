@@ -10,7 +10,12 @@ def key_to_data(key):
 def key_from_data(data):
     if data["kind"] == "char":
         return keyboard.KeyCode.from_char(data["value"])
-    return getattr(keyboard.Key, data["value"])
+    value = data["value"]
+    if hasattr(keyboard.Key, value):
+        return getattr(keyboard.Key, value)
+    if isinstance(value, str) and len(value) == 1:
+        return keyboard.KeyCode.from_char(value)
+    raise AttributeError(f"Tecla especial desconhecida: {value}")
 
 
 def key_label(key):

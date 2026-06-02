@@ -4,3 +4,4 @@ shortcuts.json
 build/
 dist/
 *.spec
+skills/

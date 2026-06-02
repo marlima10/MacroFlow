@@ -69,6 +69,8 @@
     "log": "Execution log",
     "repeats": "Repeats",
     "ignore_item": "Ignore item",
+    "ignored": "Ignored",
+    "active_item": "Active",
     "composite": "Composite",
     "brand_position": "Brand position",
     "car_position": "Car position",

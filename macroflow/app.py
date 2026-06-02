@@ -858,22 +858,32 @@ class MacroApp(ctk.CTk):
         ).grid(row=0, column=0, padx=24, pady=16)
 
     def hide_root_views(self):
-        for view_name in ("home_view", "farm_view", "execute_view", "settings_view", "sidebar", "main"):
+        for view_name in ("home_view", "farm_view", "playlist_view", "execute_view", "settings_view", "sidebar", "main"):
             view = getattr(self, view_name, None)
             if view is not None:
                 view.grid_remove()
 
+    def configure_fullscreen_layout(self):
+        self.grid_columnconfigure(0, weight=1, minsize=0)
+        self.grid_columnconfigure(1, weight=0, minsize=0)
+        self.grid_rowconfigure(0, weight=1)
+
+    def configure_shell_layout(self):
+        self.grid_columnconfigure(0, weight=0, minsize=0)
+        self.grid_columnconfigure(1, weight=1, minsize=0)
+        self.grid_rowconfigure(0, weight=1)
+
     def show_home(self):
         self.hide_root_views()
         self.active_screen = "home"
-        self.grid_columnconfigure(0, weight=1)
+        self.configure_fullscreen_layout()
         self.home_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.home_view.tkraise()
 
     def show_placeholder(self, name):
         self.hide_root_views()
         self.active_screen = name
-        self.grid_columnconfigure(0, weight=1)
+        self.configure_fullscreen_layout()
         view = getattr(self, f"{name}_view")
         view.grid(row=0, column=0, columnspan=2, sticky="nsew")
         view.tkraise()
@@ -881,12 +891,12 @@ class MacroApp(ctk.CTk):
     def show_app_shell(self, view="conventional"):
         self.hide_root_views()
         self.active_screen = "macro_editor"
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=1)
+        self.configure_shell_layout()
         self.configure(fg_color="#020812")
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.main.grid(row=0, column=1, sticky="nsew", padx=18, pady=18)
         self.show_view(view)
+        self.sidebar.tkraise()
         self.main.tkraise()
 
     def open_macro_editor(self):
@@ -2857,6 +2867,14 @@ class MacroApp(ctk.CTk):
         )
         title = ctk.CTkFrame(row, fg_color="transparent")
         title.grid(row=0, column=1, padx=(0, 18), pady=(16, 8), sticky="w")
+        macro_color = self.normalized_macro_color(item)
+        if macro_color != DEFAULT_MACRO_COLOR:
+            ctk.CTkLabel(
+                title,
+                text="*",
+                font=ctk.CTkFont(size=20, weight="bold"),
+                text_color=macro_color,
+            ).pack(side="left", padx=(0, 8))
         ctk.CTkLabel(title, text=item["display_name"], font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
         if self.is_composite_farm_macro(item):
             ctk.CTkLabel(
@@ -2875,12 +2893,17 @@ class MacroApp(ctk.CTk):
         repeat_entry = ctk.CTkEntry(repeats, width=120, textvariable=item["repeats_var"])
         repeat_entry.pack(side="left")
         repeat_entry.bind("<KeyRelease>", lambda _event=None: self.update_farm_total())
-        ctk.CTkSwitch(
+        ctk.CTkLabel(repeats, text=self.t("farm.ignore_item")).pack(side="left", padx=(16, 8))
+        ignore_button = ctk.CTkButton(
             repeats,
-            text=self.t("farm.ignore_item"),
-            variable=item["ignore_var"],
-            command=self.update_farm_total,
-        ).pack(side="left", padx=(16, 0))
+            width=92,
+            height=28,
+            corner_radius=6,
+            command=lambda selected=item: self.toggle_farm_ignore_item(selected),
+        )
+        ignore_button.pack(side="left")
+        item["ignore_button"] = ignore_button
+        self.update_farm_ignore_card(item)
 
         if item["possicaoMarca"]:
             ctk.CTkLabel(row, text=self.t("farm.brand_position"), font=ctk.CTkFont(size=14, weight="bold")).grid(
@@ -2920,6 +2943,30 @@ class MacroApp(ctk.CTk):
                 pass
         if hasattr(self, "farm_total_var"):
             self.farm_total_var.set(str(total))
+
+    def toggle_farm_ignore_item(self, item):
+        item["ignore_var"].set(not item["ignore_var"].get())
+        self.update_farm_ignore_card(item)
+        self.update_farm_total()
+
+    def update_farm_ignore_card(self, item):
+        button = item.get("ignore_button")
+        if button is None:
+            return
+        if item["ignore_var"].get():
+            button.configure(
+                text=self.t("farm.ignored"),
+                fg_color="#dc2626",
+                hover_color="#b91c1c",
+                text_color="#ffffff",
+            )
+        else:
+            button.configure(
+                text=self.t("farm.active_item"),
+                fg_color="#16a34a",
+                hover_color="#15803d",
+                text_color="#ffffff",
+            )
 
     def highlight_running_farm_card(self, running_name):
         for item in getattr(self, "farm_items", []):
