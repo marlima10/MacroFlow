@@ -1,5 +1,6 @@
 import json
 import queue
+import subprocess
 import sys
 import time
 import tkinter as tk
@@ -182,12 +183,17 @@ class MacroApp(ctk.CTk):
         macros = data.get("macros")
         if not isinstance(macros, dict):
             macros = {}
-        return {"interval_ms": data.get("interval_ms", 1000), "macros": macros}
+        return {
+            "interval_ms": data.get("interval_ms", 1000),
+            "shutdown_on_finish": bool(data.get("shutdown_on_finish", False)),
+            "macros": macros,
+        }
 
     def save_farm_config(self):
         data = {
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "interval_ms": self.farm_interval_var.get() if hasattr(self, "farm_interval_var") else 1000,
+            "shutdown_on_finish": bool(self.farm_shutdown_var.get()) if hasattr(self, "farm_shutdown_var") else False,
             "macros": {},
         }
         for item in getattr(self, "farm_items", []):
@@ -649,6 +655,16 @@ class MacroApp(ctk.CTk):
             command=self.engine.stop_playback,
         )
         self.farm_stop_button.grid(row=0, column=4, padx=(0, 22), pady=14, sticky="ew")
+        self.farm_shutdown_var = tk.BooleanVar(value=bool(self.farm_config.get("shutdown_on_finish", False)))
+        self.farm_shutdown_button = ctk.CTkButton(
+            controls,
+            width=270,
+            height=34,
+            corner_radius=7,
+            command=self.toggle_farm_shutdown_on_finish,
+        )
+        self.farm_shutdown_button.grid(row=1, column=0, columnspan=5, padx=22, pady=(0, 14), sticky="w")
+        self.update_farm_shutdown_button()
 
         status = self.create_execute_card(self.farm_view)
         status.grid(row=2, column=0, padx=(18, 10), pady=(0, 12), sticky="ew")
@@ -1921,6 +1937,8 @@ class MacroApp(ctk.CTk):
                     self.stop_playlist_timer()
                     self.stop_farm_timer()
             self.set_playback_alert(payload)
+        elif action == "playback_finished":
+            self.handle_playback_finished(payload)
         elif action == "playlist_current":
             if hasattr(self, "playlist_current_var"):
                 self.playlist_current_var.set(payload)
@@ -2225,6 +2243,41 @@ class MacroApp(ctk.CTk):
         if hasattr(self, "farm_status_var"):
             self.farm_status_var.set(self.t("farm.waiting"))
         self.reset_farm_card_highlights()
+
+    def handle_playback_finished(self, payload):
+        if self.active_screen != "farm" or not isinstance(payload, dict):
+            return
+        shutdown_enabled = hasattr(self, "farm_shutdown_var") and self.farm_shutdown_var.get()
+        if not payload.get("completed") or not shutdown_enabled:
+            return
+        self.log_farm(self.t("farm.shutdown_started"))
+        try:
+            subprocess.Popen(["shutdown", "/s", "/f", "/t", "0"])
+        except OSError as exc:
+            self.log_farm(f"{self.t('farm.shutdown_error')} {exc}")
+
+    def toggle_farm_shutdown_on_finish(self):
+        self.farm_shutdown_var.set(not self.farm_shutdown_var.get())
+        self.update_farm_shutdown_button()
+        self.save_farm_config()
+
+    def update_farm_shutdown_button(self):
+        if not hasattr(self, "farm_shutdown_button"):
+            return
+        if self.farm_shutdown_var.get():
+            self.farm_shutdown_button.configure(
+                text=self.t("farm.shutdown_enabled"),
+                fg_color="#16a34a",
+                hover_color="#15803d",
+                text_color="#ffffff",
+            )
+        else:
+            self.farm_shutdown_button.configure(
+                text=self.t("farm.shutdown_disabled"),
+                fg_color="#dc2626",
+                hover_color="#b91c1c",
+                text_color="#ffffff",
+            )
 
     def handle_playlist_current_details(self, payload):
         if not isinstance(payload, dict):

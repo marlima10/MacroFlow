@@ -358,8 +358,11 @@ class MacroEngine:
         self.ui_queue.put(("event_added", list(self.events)))
 
     def _finish_playback(self, message):
+        lower_message = message.lower()
+        completed = "finalizada" in lower_message or "finalizado" in lower_message
         self.playing = False
         self.stop_playback_requested.clear()
+        self.ui_queue.put(("playback_finished", {"message": message, "completed": completed}))
         self.ui_queue.put(("playing", False))
         self.notify(message)
 
