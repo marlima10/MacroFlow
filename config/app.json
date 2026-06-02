@@ -2,5 +2,5 @@
   "language": "pt-br",
   "theme": "Dark",
   "start_with_windows": false,
-  "farm_mode": false
+  "farm_mode": true
 }

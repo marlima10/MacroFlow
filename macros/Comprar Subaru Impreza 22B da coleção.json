@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "Comprar Subaru Impreza 22B da coleção",
-  "updated_at": "2026-06-02 14:44:41",
+  "name": "Comprar Subaru Impreza 22B da cole\u00e7\u00e3o",
+  "updated_at": "2026-06-02 18:21:16",
   "events": [
     {
       "type": "key_hold",
@@ -52,6 +52,6 @@
   "ordem": 8,
   "possicaoMarca": false,
   "posicaoCarro": false,
-  "ativarRepeticao": false,
+  "ativarRepeticao": true,
   "cor": "#14532d"
 }
