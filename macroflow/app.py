@@ -656,15 +656,27 @@ class MacroApp(ctk.CTk):
         )
         self.farm_stop_button.grid(row=0, column=4, padx=(0, 22), pady=14, sticky="ew")
         self.farm_shutdown_var = tk.BooleanVar(value=bool(self.farm_config.get("shutdown_on_finish", False)))
+        farm_options = ctk.CTkFrame(controls, fg_color="transparent")
+        farm_options.grid(row=1, column=0, columnspan=5, padx=22, pady=(0, 14), sticky="w")
         self.farm_shutdown_button = ctk.CTkButton(
-            controls,
+            farm_options,
             width=270,
             height=34,
             corner_radius=7,
             command=self.toggle_farm_shutdown_on_finish,
         )
-        self.farm_shutdown_button.grid(row=1, column=0, columnspan=5, padx=22, pady=(0, 14), sticky="w")
+        self.farm_shutdown_button.pack(side="left")
         self.update_farm_shutdown_button()
+        ctk.CTkButton(
+            farm_options,
+            text=f"[Calc]  {self.t('farm.calculate_last_car')}",
+            width=300,
+            height=34,
+            corner_radius=7,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.calculate_farm_last_car,
+        ).pack(side="left", padx=(12, 0))
 
         status = self.create_execute_card(self.farm_view)
         status.grid(row=2, column=0, padx=(18, 10), pady=(0, 12), sticky="ew")
@@ -2266,18 +2278,21 @@ class MacroApp(ctk.CTk):
             return
         if self.farm_shutdown_var.get():
             self.farm_shutdown_button.configure(
-                text=self.t("farm.shutdown_enabled"),
+                text=f"[PC]  {self.t('farm.shutdown_enabled')}",
                 fg_color="#16a34a",
                 hover_color="#15803d",
                 text_color="#ffffff",
             )
         else:
             self.farm_shutdown_button.configure(
-                text=self.t("farm.shutdown_disabled"),
+                text=f"[PC]  {self.t('farm.shutdown_disabled')}",
                 fg_color="#dc2626",
                 hover_color="#b91c1c",
                 text_color="#ffffff",
             )
+
+    def calculate_farm_last_car(self):
+        LastCarCalculatorDialog(self)
 
     def handle_playlist_current_details(self, payload):
         if not isinstance(payload, dict):
@@ -3502,6 +3517,102 @@ class MacroApp(ctk.CTk):
     @staticmethod
     def safe_macro_name(name):
         return "".join(ch for ch in name if ch.isalnum() or ch in (" ", "-", "_", "(", ")")).strip()
+
+
+class LastCarCalculatorDialog(ctk.CTkToplevel):
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.title(app.t("farm.calculate_last_car"))
+        self.geometry("420x300")
+        self.resizable(False, False)
+        self.transient(app)
+        self.grab_set()
+
+        self.row_var = tk.StringVar(value="1")
+        self.column_var = tk.StringVar(value="1")
+        self.repeats_var = tk.StringVar(value="1")
+        self.result_var = tk.StringVar(value="-")
+        self.create_widgets()
+
+    def create_widgets(self):
+        self.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            self,
+            text=self.app.t("farm.calculate_last_car"),
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, padx=22, pady=(22, 8), sticky="w")
+
+        ctk.CTkLabel(
+            self,
+            text=self.app.t("farm.calculate_last_car_hint"),
+            text_color=("gray35", "gray75"),
+            wraplength=360,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, padx=22, pady=(0, 16), sticky="w")
+
+        for row, (label_key, variable) in enumerate(
+            (
+                ("farm.start_row", self.row_var),
+                ("farm.start_column", self.column_var),
+                ("farm.repeat_count", self.repeats_var),
+            ),
+            start=2,
+        ):
+            ctk.CTkLabel(self, text=self.app.t(label_key)).grid(row=row, column=0, padx=(22, 12), pady=8, sticky="w")
+            ctk.CTkEntry(self, textvariable=variable).grid(row=row, column=1, padx=(0, 22), pady=8, sticky="ew")
+
+        result = ctk.CTkFrame(self, corner_radius=8, fg_color=("#eef6ff", "#07111f"))
+        result.grid(row=5, column=0, columnspan=2, padx=22, pady=(12, 8), sticky="ew")
+        result.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            result,
+            text=self.app.t("farm.last_car_result"),
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).grid(row=0, column=0, padx=14, pady=12, sticky="w")
+        ctk.CTkLabel(
+            result,
+            textvariable=self.result_var,
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="#a855f7",
+        ).grid(row=0, column=1, padx=14, pady=12, sticky="e")
+
+        buttons = ctk.CTkFrame(self, fg_color="transparent")
+        buttons.grid(row=6, column=0, columnspan=2, padx=22, pady=(12, 22), sticky="ew")
+        ctk.CTkButton(
+            buttons,
+            text=self.app.t("farm.calculate"),
+            command=self.calculate,
+        ).pack(side="right")
+        ctk.CTkButton(
+            buttons,
+            text=self.app.t("shortcuts.cancel"),
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.destroy,
+        ).pack(side="right", padx=(0, 8))
+
+    def calculate(self):
+        try:
+            row = int(self.row_var.get())
+            column = int(self.column_var.get())
+            repeats = int(self.repeats_var.get())
+        except ValueError:
+            messagebox.showerror(self.app.t("farm.calculate_last_car"), self.app.t("farm.invalid_calculator_values"))
+            return
+
+        if row < 1 or row > 3 or column < 1 or repeats < 1:
+            messagebox.showerror(self.app.t("farm.calculate_last_car"), self.app.t("farm.invalid_calculator_values"))
+            return
+
+        target_row, target_column = matrix_target_for_repeat(
+            {"target_row": row, "target_column": column},
+            repeats - 1,
+        )
+        result = f"L{target_row}C{target_column}"
+        self.result_var.set(result)
+        self.app.log_farm(f"{self.app.t('farm.last_car_result')}: {result}")
 
 
 class ShortcutEditor(ctk.CTkToplevel):
