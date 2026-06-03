@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Voltar para garagem",
-  "updated_at": "2026-06-02 14:43:22",
+  "updated_at": "2026-06-03 11:11:16",
   "events": [
     {
       "type": "key_hold",

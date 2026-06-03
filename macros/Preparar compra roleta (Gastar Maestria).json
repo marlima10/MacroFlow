@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Preparar compra roleta (Gastar Maestria)",
-  "updated_at": "2026-06-02 14:45:31",
+  "updated_at": "2026-06-03 11:11:08",
   "events": [
     {
       "type": "key_hold",

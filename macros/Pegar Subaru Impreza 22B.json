@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Pegar Subaru Impreza 22B",
-  "updated_at": "2026-06-01 18:29:46",
+  "updated_at": "2026-06-03 11:10:24",
   "events": [
     {
       "key": {
@@ -94,7 +94,7 @@
       "duration": 0.139
     }
   ],
-  "ordem": 2,
+  "ordem": null,
   "possicaoMarca": true,
   "posicaoCarro": true,
   "ativarRepeticao": false,

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "Iniciar Jogo com carro padrão",
-  "updated_at": "2026-06-02 14:29:14",
+  "name": "Iniciar Jogo com carro padr\u00e3o",
+  "updated_at": "2026-06-03 11:10:16",
   "events": [
     {
       "type": "key_hold",
@@ -94,7 +94,7 @@
       "duration": 0.1829
     }
   ],
-  "ordem": 1,
+  "ordem": null,
   "possicaoMarca": false,
   "posicaoCarro": false,
   "ativarRepeticao": false,

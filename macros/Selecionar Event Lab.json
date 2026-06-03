@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Selecionar Event Lab",
-  "updated_at": "2026-06-02 15:05:52",
+  "updated_at": "2026-06-03 11:10:28",
   "events": [
     {
       "type": "key_hold",
@@ -274,7 +274,7 @@
       "duration": 0.1971
     }
   ],
-  "ordem": 3,
+  "ordem": null,
   "possicaoMarca": false,
   "posicaoCarro": false,
   "ativarRepeticao": false,

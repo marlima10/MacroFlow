@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Sair farm maestria",
-  "updated_at": "2026-06-02 14:42:20",
+  "updated_at": "2026-06-03 11:11:13",
   "events": [
     {
       "type": "key_hold",

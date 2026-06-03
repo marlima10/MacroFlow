@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "Sair da Coleção",
-  "updated_at": "2026-06-02 14:44:50",
+  "name": "Sair da Cole\u00e7\u00e3o",
+  "updated_at": "2026-06-03 11:11:10",
   "events": [
     {
       "type": "key_hold",
