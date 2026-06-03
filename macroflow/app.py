@@ -3524,7 +3524,7 @@ class LastCarCalculatorDialog(ctk.CTkToplevel):
         super().__init__(app)
         self.app = app
         self.title(app.t("farm.calculate_last_car"))
-        self.geometry("420x300")
+        self.geometry("420x360")
         self.resizable(False, False)
         self.transient(app)
         self.grab_set()
@@ -3563,8 +3563,26 @@ class LastCarCalculatorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(self, text=self.app.t(label_key)).grid(row=row, column=0, padx=(22, 12), pady=8, sticky="w")
             ctk.CTkEntry(self, textvariable=variable).grid(row=row, column=1, padx=(0, 22), pady=8, sticky="ew")
 
+        buttons = ctk.CTkFrame(self, fg_color="transparent")
+        buttons.grid(row=5, column=0, columnspan=2, padx=22, pady=(12, 8), sticky="ew")
+        buttons.grid_columnconfigure(0, weight=1)
+        ctk.CTkButton(
+            buttons,
+            text=self.app.t("farm.calculate"),
+            height=36,
+            command=self.calculate,
+        ).grid(row=0, column=0, sticky="ew")
+        ctk.CTkButton(
+            buttons,
+            text=self.app.t("shortcuts.cancel"),
+            height=36,
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=self.destroy,
+        ).grid(row=0, column=1, padx=(8, 0))
+
         result = ctk.CTkFrame(self, corner_radius=8, fg_color=("#eef6ff", "#07111f"))
-        result.grid(row=5, column=0, columnspan=2, padx=22, pady=(12, 8), sticky="ew")
+        result.grid(row=6, column=0, columnspan=2, padx=22, pady=(8, 22), sticky="ew")
         result.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(
             result,
@@ -3577,21 +3595,6 @@ class LastCarCalculatorDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color="#a855f7",
         ).grid(row=0, column=1, padx=14, pady=12, sticky="e")
-
-        buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=6, column=0, columnspan=2, padx=22, pady=(12, 22), sticky="ew")
-        ctk.CTkButton(
-            buttons,
-            text=self.app.t("farm.calculate"),
-            command=self.calculate,
-        ).pack(side="right")
-        ctk.CTkButton(
-            buttons,
-            text=self.app.t("shortcuts.cancel"),
-            fg_color="#5c5f66",
-            hover_color="#4d5056",
-            command=self.destroy,
-        ).pack(side="right", padx=(0, 8))
 
     def calculate(self):
         try:
