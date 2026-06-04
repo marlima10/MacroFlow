@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Macro Farm 21seg Maestria",
-  "updated_at": "2026-06-02 18:21:25",
+  "updated_at": "2026-06-03 23:09:49",
   "events": [
     {
       "type": "key_hold",
@@ -52,6 +52,9 @@
   "ordem": 4,
   "possicaoMarca": false,
   "posicaoCarro": false,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": true,
+  "maestria": true,
+  "manual": "parametros_gerais.md",
   "cor": "#14532d"
 }

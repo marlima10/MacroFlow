@@ -1,5 +1,6 @@
 import json
 import queue
+import re
 import subprocess
 import sys
 import time
@@ -16,10 +17,13 @@ from .constants import (
     APP_ICON_PNG_FILE,
     DEFAULT_SHORTCUTS,
     FARM_CONFIG_FILE,
+    FOLDER_ICON_FILE,
     LANGUAGE_DIR,
+    MANUAL_DIR,
     MACROS_DIR,
     SHORTCUT_LABELS,
     SHORTCUTS_FILE,
+    SPLASH_IMAGE_FILE,
 )
 from .engine import (
     DEFAULT_MATRIX_STEP_DELAY,
@@ -94,6 +98,8 @@ class MacroApp(ctk.CTk):
         self.set_window_icon()
         self.after(250, self.set_window_icon)
         self.after(1000, self.set_window_icon)
+        self.withdraw()
+        splash_visible = self.show_splash_screen()
 
         self.ui_queue = queue.Queue()
         self.shortcuts = self.load_shortcuts()
@@ -123,7 +129,10 @@ class MacroApp(ctk.CTk):
         self.order_var = tk.StringVar()
         self.brand_position_var = tk.BooleanVar(value=False)
         self.car_position_var = tk.BooleanVar(value=False)
+        self.last_car_position_var = tk.BooleanVar(value=False)
         self.repeat_enabled_var = tk.BooleanVar(value=False)
+        self.mastery_var = tk.BooleanVar(value=False)
+        self.manual_var = tk.StringVar(value="")
         self.color_var = tk.StringVar(value=DEFAULT_MACRO_COLOR)
         self.cell_editor = None
         self.playback_blink_on = False
@@ -147,7 +156,40 @@ class MacroApp(ctk.CTk):
         self.refresh_macro_list()
         self.start_listeners()
         self.after(100, self.process_queue)
+        self.after(2200 if splash_visible else 0, self.close_splash_screen)
         self.protocol("WM_DELETE_WINDOW", self.close)
+
+    def show_splash_screen(self):
+        if not SPLASH_IMAGE_FILE.exists():
+            return False
+        try:
+            image = tk.PhotoImage(file=str(SPLASH_IMAGE_FILE))
+        except tk.TclError:
+            return False
+        while image.width() > 760 or image.height() > 600:
+            image = image.subsample(2, 2)
+        self.splash_image = image
+        self.splash_window = tk.Toplevel(self)
+        self.splash_window.overrideredirect(True)
+        self.splash_window.attributes("-topmost", True)
+        self.splash_window.configure(bg="#020812")
+        label = tk.Label(self.splash_window, image=self.splash_image, borderwidth=0, highlightthickness=0, bg="#020812")
+        label.pack()
+        width = self.splash_image.width()
+        height = self.splash_image.height()
+        x = max(0, (self.winfo_screenwidth() - width) // 2)
+        y = max(0, (self.winfo_screenheight() - height) // 2)
+        self.splash_window.geometry(f"{width}x{height}+{x}+{y}")
+        return True
+
+    def close_splash_screen(self):
+        splash = getattr(self, "splash_window", None)
+        if splash is not None and splash.winfo_exists():
+            splash.destroy()
+        self.splash_window = None
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
     def load_app_config(self):
         default_config = {"language": "pt-br", "theme": "Dark", "start_with_windows": False, "farm_mode": False}
@@ -172,20 +214,42 @@ class MacroApp(ctk.CTk):
         APP_CONFIG_FILE.write_text(json.dumps(self.app_config, indent=2), encoding="utf-8")
 
     def load_farm_config(self):
+        default_positions = {
+            "brand": {"cima": 0, "baixo": 0, "esquerda": 0, "direita": 0},
+            "car": {"linha": 1, "coluna": 1},
+            "last_car": {"linha": 1, "coluna": 1},
+        }
         if not FARM_CONFIG_FILE.exists():
-            return {"interval_ms": 1000, "macros": {}}
+            return {"interval_ms": 1000, "shutdown_on_finish": False, "positions": default_positions, "macros": {}}
         try:
             data = json.loads(FARM_CONFIG_FILE.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            return {"interval_ms": 1000, "macros": {}}
+            return {"interval_ms": 1000, "shutdown_on_finish": False, "positions": default_positions, "macros": {}}
         if not isinstance(data, dict):
-            return {"interval_ms": 1000, "macros": {}}
+            return {"interval_ms": 1000, "shutdown_on_finish": False, "positions": default_positions, "macros": {}}
         macros = data.get("macros")
         if not isinstance(macros, dict):
             macros = {}
+        roulette_quantity = data.get("roulette_quantity", data.get("repeticoes", 1))
+        if "roulette_quantity" not in data:
+            for saved_macro in macros.values():
+                if isinstance(saved_macro, dict) and "repeticoes" in saved_macro:
+                    roulette_quantity = saved_macro.get("repeticoes", 1)
+                    break
+        positions = data.get("positions")
+        if not isinstance(positions, dict):
+            positions = {}
+        merged_positions = {}
+        for group, defaults in default_positions.items():
+            saved_group = positions.get(group, {})
+            if not isinstance(saved_group, dict):
+                saved_group = {}
+            merged_positions[group] = {**defaults, **saved_group}
         return {
             "interval_ms": data.get("interval_ms", 1000),
+            "roulette_quantity": roulette_quantity,
             "shutdown_on_finish": bool(data.get("shutdown_on_finish", False)),
+            "positions": merged_positions,
             "macros": macros,
         }
 
@@ -193,7 +257,9 @@ class MacroApp(ctk.CTk):
         data = {
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "interval_ms": self.farm_interval_var.get() if hasattr(self, "farm_interval_var") else 1000,
+            "roulette_quantity": self.farm_roulette_quantity_var.get() if hasattr(self, "farm_roulette_quantity_var") else 1,
             "shutdown_on_finish": bool(self.farm_shutdown_var.get()) if hasattr(self, "farm_shutdown_var") else False,
+            "positions": self.current_farm_positions_config(),
             "macros": {},
         }
         for item in getattr(self, "farm_items", []):
@@ -201,20 +267,33 @@ class MacroApp(ctk.CTk):
                 "name": item.get("name"),
                 "ordem": item.get("ordem"),
                 "cor": self.normalized_macro_color(item),
-                "repeticoes": item["repeats_var"].get() if item.get("ativarRepeticao") else 1,
-                "linha": item["row_var"].get(),
-                "coluna": item["column_var"].get(),
-                "cima": item["up_var"].get(),
-                "baixo": item["down_var"].get(),
-                "esquerda": item["left_var"].get(),
-                "direita": item["right_var"].get(),
                 "ignorarItem": bool(item["ignore_var"].get()),
                 "possicaoMarca": bool(item.get("possicaoMarca", False)),
                 "posicaoCarro": bool(item.get("posicaoCarro", False)),
+                "posicaoUltimoCarro": bool(item.get("posicaoUltimoCarro", False)),
                 "ativarRepeticao": bool(item.get("ativarRepeticao", False)),
+                "maestria": bool(item.get("maestria", False)),
             }
         FARM_CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         self.farm_config = data
+
+    def current_farm_positions_config(self):
+        return {
+            "brand": {
+                "cima": self.farm_brand_up_var.get() if hasattr(self, "farm_brand_up_var") else 0,
+                "baixo": self.farm_brand_down_var.get() if hasattr(self, "farm_brand_down_var") else 0,
+                "esquerda": self.farm_brand_left_var.get() if hasattr(self, "farm_brand_left_var") else 0,
+                "direita": self.farm_brand_right_var.get() if hasattr(self, "farm_brand_right_var") else 0,
+            },
+            "car": {
+                "linha": self.farm_car_row_var.get() if hasattr(self, "farm_car_row_var") else 1,
+                "coluna": self.farm_car_column_var.get() if hasattr(self, "farm_car_column_var") else 1,
+            },
+            "last_car": {
+                "linha": self.farm_last_car_row_var.get() if hasattr(self, "farm_last_car_row_var") else 1,
+                "coluna": self.farm_last_car_column_var.get() if hasattr(self, "farm_last_car_column_var") else 1,
+            },
+        }
 
     def load_language(self, language):
         language_file = LANGUAGE_DIR / f"{language}.json"
@@ -606,7 +685,7 @@ class MacroApp(ctk.CTk):
         self.farm_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.farm_view.grid_columnconfigure(0, weight=1)
         self.farm_view.grid_columnconfigure(1, weight=0, minsize=330)
-        self.farm_view.grid_rowconfigure(3, weight=1)
+        self.farm_view.grid_rowconfigure(4, weight=1)
 
         header = ctk.CTkFrame(self.farm_view, fg_color="transparent")
         header.grid(row=0, column=0, columnspan=2, padx=18, pady=(14, 12), sticky="ew")
@@ -656,30 +735,11 @@ class MacroApp(ctk.CTk):
         )
         self.farm_stop_button.grid(row=0, column=4, padx=(0, 22), pady=14, sticky="ew")
         self.farm_shutdown_var = tk.BooleanVar(value=bool(self.farm_config.get("shutdown_on_finish", False)))
-        farm_options = ctk.CTkFrame(controls, fg_color="transparent")
-        farm_options.grid(row=1, column=0, columnspan=5, padx=22, pady=(0, 14), sticky="w")
-        self.farm_shutdown_button = ctk.CTkButton(
-            farm_options,
-            width=270,
-            height=34,
-            corner_radius=7,
-            command=self.toggle_farm_shutdown_on_finish,
-        )
-        self.farm_shutdown_button.pack(side="left")
-        self.update_farm_shutdown_button()
-        ctk.CTkButton(
-            farm_options,
-            text=f"[Calc]  {self.t('farm.calculate_last_car')}",
-            width=300,
-            height=34,
-            corner_radius=7,
-            fg_color="#5c5f66",
-            hover_color="#4d5056",
-            command=self.calculate_farm_last_car,
-        ).pack(side="left", padx=(12, 0))
+
+        self.create_farm_positions_panel(self.farm_view).grid(row=2, column=0, padx=(18, 10), pady=(0, 12), sticky="ew")
 
         status = self.create_execute_card(self.farm_view)
-        status.grid(row=2, column=0, padx=(18, 10), pady=(0, 12), sticky="ew")
+        status.grid(row=3, column=0, padx=(18, 10), pady=(0, 12), sticky="ew")
         status.grid_columnconfigure((0, 1, 2), weight=1, uniform="farm_status")
         self.farm_current_var = tk.StringVar(value="-")
         self.farm_elapsed_var = tk.StringVar(value="00:00:00")
@@ -705,11 +765,11 @@ class MacroApp(ctk.CTk):
             ).grid(row=1, column=column, padx=22, pady=(0, 18), sticky="w")
 
         self.farm_macro_scroll = ctk.CTkScrollableFrame(self.farm_view, fg_color="transparent")
-        self.farm_macro_scroll.grid(row=3, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
+        self.farm_macro_scroll.grid(row=4, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
         self.farm_macro_scroll.grid_columnconfigure(0, weight=1)
 
         side = ctk.CTkFrame(self.farm_view, fg_color="transparent")
-        side.grid(row=1, column=1, rowspan=3, padx=(6, 18), pady=(0, 16), sticky="nsew")
+        side.grid(row=1, column=1, rowspan=4, padx=(6, 18), pady=(0, 16), sticky="nsew")
         side.grid_columnconfigure(0, weight=1, minsize=320)
         side.grid_rowconfigure(1, weight=1)
         details = self.create_execute_card(side)
@@ -744,6 +804,204 @@ class MacroApp(ctk.CTk):
         self.farm_log.grid(row=1, column=0, padx=14, pady=(0, 14), sticky="nsew")
         self.farm_view.grid_remove()
         self.refresh_farm_macros()
+
+    def create_farm_positions_panel(self, parent):
+        positions = self.farm_config.get("positions", {})
+        brand = positions.get("brand", {})
+        car = positions.get("car", {})
+        last_car = positions.get("last_car", {})
+
+        self.farm_brand_up_var = tk.StringVar(value=str(brand.get("cima", 0)))
+        self.farm_brand_down_var = tk.StringVar(value=str(brand.get("baixo", 0)))
+        self.farm_brand_left_var = tk.StringVar(value=str(brand.get("esquerda", 0)))
+        self.farm_brand_right_var = tk.StringVar(value=str(brand.get("direita", 0)))
+        self.farm_car_row_var = tk.StringVar(value=str(car.get("linha", 1)))
+        self.farm_car_column_var = tk.StringVar(value=str(car.get("coluna", 1)))
+        self.farm_last_car_row_var = tk.StringVar(value=str(last_car.get("linha", 1)))
+        self.farm_last_car_column_var = tk.StringVar(value=str(last_car.get("coluna", 1)))
+
+        panel = ctk.CTkFrame(
+            parent,
+            corner_radius=8,
+            fg_color=("#eaf4ff", "#0d2138"),
+            border_width=1,
+            border_color=("#8cc7ff", "#2f74ba"),
+        )
+        panel.grid_columnconfigure(0, weight=1)
+        self.farm_parameters_open = False
+        self.farm_parameters_button = ctk.CTkButton(
+            panel,
+            text=f">  {self.t('farm.general_parameters')}",
+            height=42,
+            anchor="w",
+            fg_color="transparent",
+            hover_color=("#d8e6f3", "#1b2b42"),
+            text_color=("gray10", "gray90"),
+            font=ctk.CTkFont(size=15, weight="bold"),
+            command=self.toggle_farm_parameters_panel,
+        )
+        self.farm_parameters_button.grid(row=0, column=0, padx=18, pady=14, sticky="ew")
+
+        self.farm_parameters_content = ctk.CTkFrame(panel, fg_color="transparent")
+        self.farm_parameters_content.grid_columnconfigure(0, weight=1)
+        self.create_farm_general_action_controls(self.farm_parameters_content).grid(
+            row=0, column=0, padx=18, pady=(0, 6), sticky="ew"
+        )
+        self.create_farm_repetition_controls(self.farm_parameters_content).grid(
+            row=1, column=0, padx=18, pady=6, sticky="ew"
+        )
+        self.create_farm_brand_position_controls(self.farm_parameters_content).grid(
+            row=2, column=0, padx=18, pady=6, sticky="ew"
+        )
+        self.create_farm_matrix_position_controls(
+            self.farm_parameters_content,
+            self.t("farm.car_position"),
+            self.t("farm.car_position_hint"),
+            self.farm_car_row_var,
+            self.farm_car_column_var,
+        ).grid(row=3, column=0, padx=18, pady=6, sticky="ew")
+        self.create_farm_matrix_position_controls(
+            self.farm_parameters_content,
+            self.t("farm.last_car_position"),
+            self.t("farm.last_car_position_hint"),
+            self.farm_last_car_row_var,
+            self.farm_last_car_column_var,
+            readonly=True,
+            action_text=self.t("farm.update_last_car"),
+            action_command=self.update_farm_last_car_position,
+        ).grid(row=4, column=0, padx=18, pady=(6, 14), sticky="ew")
+        self.farm_parameters_content.grid(row=1, column=0, sticky="ew")
+        self.farm_parameters_content.grid_remove()
+        return panel
+
+    def toggle_farm_parameters_panel(self):
+        if not hasattr(self, "farm_parameters_content"):
+            return
+        self.farm_parameters_open = not self.farm_parameters_open
+        if self.farm_parameters_open:
+            self.farm_parameters_content.grid()
+            self.farm_parameters_button.configure(text=f"v  {self.t('farm.general_parameters')}")
+        else:
+            self.farm_parameters_content.grid_remove()
+            self.farm_parameters_button.configure(text=f">  {self.t('farm.general_parameters')}")
+
+    def create_farm_general_action_controls(self, parent):
+        card = self.create_farm_position_subcard(parent)
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.grid(row=0, column=0, padx=14, pady=12, sticky="ew")
+        actions.grid_columnconfigure(1, weight=1)
+        self.farm_shutdown_button = ctk.CTkButton(
+            actions,
+            width=230,
+            height=34,
+            corner_radius=7,
+            command=self.toggle_farm_shutdown_on_finish,
+        )
+        self.farm_shutdown_button.grid(row=0, column=0, sticky="w")
+        self.update_farm_shutdown_button()
+        ctk.CTkButton(
+            actions,
+            text=self.t("farm.open_tutorial"),
+            image=self.get_folder_icon_image(),
+            compound="left",
+            width=180,
+            height=34,
+            corner_radius=7,
+            fg_color="#facc15",
+            hover_color="#eab308",
+            text_color="#1f2937",
+            command=self.open_farm_parameters_tutorial,
+        ).grid(row=0, column=1, padx=(12, 0), sticky="w")
+        return card
+
+    def create_farm_repetition_controls(self, parent):
+        card = self.create_farm_position_subcard(parent)
+        card.grid_columnconfigure(0, weight=1)
+        self.farm_roulette_quantity_var = tk.StringVar(value=str(self.farm_config.get("roulette_quantity", 1)))
+        ctk.CTkLabel(
+            card,
+            text=self.t("farm.repeats"),
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).grid(row=0, column=0, padx=14, pady=(12, 8), sticky="w")
+        controls = ctk.CTkFrame(card, fg_color="transparent")
+        controls.grid(row=1, column=0, padx=14, pady=(0, 8), sticky="ew")
+        controls.grid_columnconfigure(0, weight=1)
+        ctk.CTkEntry(controls, width=120, textvariable=self.farm_roulette_quantity_var).grid(
+            row=0, column=0, sticky="w"
+        )
+        self.farm_roulette_quantity_var.trace_add("write", lambda *_args: self.update_farm_total())
+        self.farm_repetitions_status_var = tk.StringVar(value="")
+        ctk.CTkLabel(
+            card,
+            textvariable=self.farm_repetitions_status_var,
+            text_color=("gray35", "gray70"),
+        ).grid(row=2, column=0, padx=14, pady=(0, 12), sticky="w")
+        return card
+
+    def create_farm_brand_position_controls(self, parent):
+        card = self.create_farm_position_subcard(parent)
+        card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            card,
+            text=self.t("farm.brand_position"),
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).grid(row=0, column=0, padx=14, pady=(12, 2), sticky="w")
+        ctk.CTkLabel(
+            card,
+            text=self.t("farm.brand_position_hint"),
+            text_color=("gray35", "gray70"),
+            font=ctk.CTkFont(size=11),
+        ).grid(row=1, column=0, padx=14, pady=(0, 10), sticky="w")
+        fields = ctk.CTkFrame(card, fg_color="transparent")
+        fields.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="ew")
+        for label_key, variable in (
+            ("farm.up", self.farm_brand_up_var),
+            ("farm.down", self.farm_brand_down_var),
+            ("farm.left", self.farm_brand_left_var),
+            ("farm.right", self.farm_brand_right_var),
+        ):
+            ctk.CTkLabel(fields, text=self.t(label_key)).pack(side="left", padx=(0, 4))
+            ctk.CTkEntry(fields, width=44, textvariable=variable).pack(side="left", padx=(0, 8))
+        return card
+
+    def create_farm_matrix_position_controls(
+        self,
+        parent,
+        title,
+        hint,
+        row_var,
+        column_var,
+        readonly=False,
+        action_text=None,
+        action_command=None,
+    ):
+        card = self.create_farm_position_subcard(parent)
+        ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=0, column=0, padx=14, pady=(12, 2), sticky="w"
+        )
+        ctk.CTkLabel(
+            card,
+            text=hint,
+            text_color=("gray35", "gray70"),
+            font=ctk.CTkFont(size=11),
+        ).grid(row=1, column=0, padx=14, pady=(0, 10), sticky="w")
+        fields = ctk.CTkFrame(card, fg_color="transparent")
+        fields.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="w")
+        ctk.CTkLabel(fields, text=self.t("farm.row")).pack(side="left", padx=(0, 6))
+        row_entry = ctk.CTkEntry(fields, width=64, textvariable=row_var, state="disabled" if readonly else "normal")
+        row_entry.pack(side="left", padx=(0, 12))
+        ctk.CTkLabel(fields, text=self.t("farm.column")).pack(side="left", padx=(0, 6))
+        column_entry = ctk.CTkEntry(fields, width=64, textvariable=column_var, state="disabled" if readonly else "normal")
+        column_entry.pack(side="left")
+        if action_text and action_command:
+            ctk.CTkButton(
+                fields,
+                text=action_text,
+                width=120,
+                height=32,
+                command=action_command,
+            ).pack(side="left", padx=(12, 0))
+        return card
 
     def create_settings_view(self):
         self.settings_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
@@ -1015,6 +1273,10 @@ class MacroApp(ctk.CTk):
         order = self.order_var.get() if hasattr(self, "order_var") else ""
         brand_position = self.brand_position_var.get() if hasattr(self, "brand_position_var") else False
         car_position = self.car_position_var.get() if hasattr(self, "car_position_var") else False
+        last_car_position = self.last_car_position_var.get() if hasattr(self, "last_car_position_var") else False
+        repeat_enabled = self.repeat_enabled_var.get() if hasattr(self, "repeat_enabled_var") else False
+        mastery = self.mastery_var.get() if hasattr(self, "mastery_var") else False
+        manual = self.manual_var.get() if hasattr(self, "manual_var") else ""
         color = self.color_var.get() if hasattr(self, "color_var") else DEFAULT_MACRO_COLOR
         events = list(self.events)
         active_view = self.active_view
@@ -1041,6 +1303,10 @@ class MacroApp(ctk.CTk):
         self.order_var.set(order)
         self.brand_position_var.set(brand_position)
         self.car_position_var.set(car_position)
+        self.last_car_position_var.set(last_car_position)
+        self.repeat_enabled_var.set(repeat_enabled)
+        self.mastery_var.set(mastery)
+        self.manual_var.set(manual if manual in self.load_manual_options() else "")
         self.color_var.set(self.normalized_macro_color({"cor": color}))
         self.update_color_palette_selection()
         self.events = events
@@ -1381,7 +1647,7 @@ class MacroApp(ctk.CTk):
 
         metadata = ctk.CTkFrame(header, fg_color="transparent")
         metadata.grid(row=2, column=0, columnspan=2, padx=18, pady=(0, 12), sticky="ew")
-        metadata.grid_columnconfigure(7, weight=1)
+        metadata.grid_columnconfigure(9, weight=1)
 
         ctk.CTkLabel(metadata, text=self.t("macro.order")).grid(row=0, column=0, padx=(0, 8), sticky="w")
         ctk.CTkEntry(
@@ -1407,9 +1673,20 @@ class MacroApp(ctk.CTk):
             text=self.t("macro.repeat_enabled"),
             variable=self.repeat_enabled_var,
         ).grid(row=0, column=4, padx=(0, 18), sticky="w")
-        ctk.CTkLabel(metadata, text=self.t("macro.color")).grid(row=0, column=5, padx=(0, 8), sticky="w")
+        ctk.CTkCheckBox(
+            metadata,
+            text=self.t("macro.last_car_position"),
+            variable=self.last_car_position_var,
+            command=self.update_composite_hint,
+        ).grid(row=0, column=5, padx=(0, 18), sticky="w")
+        ctk.CTkCheckBox(
+            metadata,
+            text=self.t("macro.mastery"),
+            variable=self.mastery_var,
+        ).grid(row=0, column=6, padx=(0, 18), sticky="w")
+        ctk.CTkLabel(metadata, text=self.t("macro.color")).grid(row=0, column=7, padx=(0, 8), sticky="w")
         self.color_palette_frame = ctk.CTkFrame(metadata, fg_color="transparent")
-        self.color_palette_frame.grid(row=0, column=6, sticky="w")
+        self.color_palette_frame.grid(row=0, column=8, sticky="w")
         self.color_buttons = []
         for index, color in enumerate(MACRO_COLOR_PALETTE):
             button = ctk.CTkButton(
@@ -1437,7 +1714,19 @@ class MacroApp(ctk.CTk):
             fg_color=("#e8f1ff", "#0b1f35"),
             text_color=("#23415f", "#b8d7ff"),
         )
-        self.composite_hint_label.grid(row=1, column=0, columnspan=8, pady=(10, 0), sticky="ew")
+        ctk.CTkLabel(metadata, text=self.t("macro.link_manual")).grid(
+            row=1, column=0, padx=(0, 8), pady=(10, 0), sticky="w"
+        )
+        self.manual_options = self.load_manual_options()
+        self.manual_select = ctk.CTkComboBox(
+            metadata,
+            values=self.manual_options,
+            variable=self.manual_var,
+            width=260,
+            state="readonly",
+        )
+        self.manual_select.grid(row=1, column=1, columnspan=3, padx=(0, 18), pady=(10, 0), sticky="w")
+        self.composite_hint_label.grid(row=2, column=0, columnspan=10, pady=(10, 0), sticky="ew")
         self.update_composite_hint()
 
         actions = ctk.CTkFrame(header, fg_color="transparent")
@@ -1490,6 +1779,9 @@ class MacroApp(ctk.CTk):
             hover_color="#4d5056",
             command=self.delete_current,
         ).grid(row=0, column=5, padx=(8, 0), sticky="ew")
+
+    def load_manual_options(self):
+        return [""] + sorted(path.name for path in MANUAL_DIR.glob("*.md"))
 
     def create_status_card(self):
         status_card = ctk.CTkFrame(
@@ -1832,7 +2124,10 @@ class MacroApp(ctk.CTk):
             "ordem": None,
             "possicaoMarca": False,
             "posicaoCarro": False,
+            "posicaoUltimoCarro": False,
             "ativarRepeticao": False,
+            "maestria": False,
+            "manual": "",
             "cor": DEFAULT_MACRO_COLOR,
             "matrix": {
                 "start_row": 1,
@@ -2291,8 +2586,29 @@ class MacroApp(ctk.CTk):
                 text_color="#ffffff",
             )
 
-    def calculate_farm_last_car(self):
-        LastCarCalculatorDialog(self)
+    def update_farm_last_car_position(self):
+        try:
+            row = int(self.farm_car_row_var.get())
+            column = int(self.farm_car_column_var.get())
+            repeats = int(self.farm_roulette_quantity_var.get())
+        except ValueError:
+            messagebox.showerror(self.t("farm.calculate_last_car"), self.t("farm.invalid_calculator_values"))
+            return False
+
+        if row < 1 or row > 3 or column < 1 or repeats < 1 or repeats > 33:
+            messagebox.showerror(self.t("farm.calculate_last_car"), self.t("farm.invalid_calculator_values"))
+            return False
+
+        target_row, target_column = matrix_target_for_repeat(
+            {"target_row": row, "target_column": column},
+            repeats - 1,
+        )
+        self.farm_last_car_row_var.set(str(target_row))
+        self.farm_last_car_column_var.set(str(target_column))
+        result = f"L{target_row}C{target_column}"
+        self.log_farm(f"{self.t('farm.last_car_result')}: {result}")
+        self.save_farm_config()
+        return True
 
     def handle_playlist_current_details(self, payload):
         if not isinstance(payload, dict):
@@ -2403,7 +2719,10 @@ class MacroApp(ctk.CTk):
         self.order_var.set("")
         self.brand_position_var.set(False)
         self.car_position_var.set(False)
+        self.last_car_position_var.set(False)
         self.repeat_enabled_var.set(False)
+        self.mastery_var.set(False)
+        self.manual_var.set("")
         self.color_var.set(DEFAULT_MACRO_COLOR)
         self.update_color_palette_selection()
         self.update_composite_hint()
@@ -2545,7 +2864,10 @@ class MacroApp(ctk.CTk):
             "ordem": order,
             "possicaoMarca": bool(self.brand_position_var.get()),
             "posicaoCarro": bool(self.car_position_var.get()),
+            "posicaoUltimoCarro": bool(self.last_car_position_var.get()),
             "ativarRepeticao": bool(self.repeat_enabled_var.get()),
+            "maestria": bool(self.mastery_var.get()),
+            "manual": self.manual_var.get().strip(),
             "cor": self.normalized_macro_color({"cor": self.color_var.get()}),
         }
 
@@ -2554,7 +2876,11 @@ class MacroApp(ctk.CTk):
         self.order_var.set("" if order is None else str(order))
         self.brand_position_var.set(bool(data.get("possicaoMarca", False)))
         self.car_position_var.set(bool(data.get("posicaoCarro", False)))
+        self.last_car_position_var.set(bool(data.get("posicaoUltimoCarro", False)))
         self.repeat_enabled_var.set(bool(data.get("ativarRepeticao", False)))
+        self.mastery_var.set(bool(data.get("maestria", False)))
+        manual = str(data.get("manual", "") or "")
+        self.manual_var.set(manual if manual in self.load_manual_options() else "")
         self.color_var.set(self.normalized_macro_color(data))
         self.update_color_palette_selection()
         self.update_composite_hint()
@@ -2573,7 +2899,7 @@ class MacroApp(ctk.CTk):
     def update_composite_hint(self):
         if not hasattr(self, "composite_hint_label"):
             return
-        if self.brand_position_var.get() or self.car_position_var.get():
+        if self.brand_position_var.get() or self.car_position_var.get() or self.last_car_position_var.get():
             self.composite_hint_label.grid()
         else:
             self.composite_hint_label.grid_remove()
@@ -2940,6 +3266,7 @@ class MacroApp(ctk.CTk):
         for child in self.farm_macro_scroll.winfo_children():
             child.destroy()
         self.farm_items = self.load_farm_macros()
+        self.render_farm_repetition_controls()
         if not self.farm_items:
             ctk.CTkLabel(
                 self.farm_macro_scroll,
@@ -2952,6 +3279,15 @@ class MacroApp(ctk.CTk):
             self.create_farm_macro_row(index, item)
         self.update_farm_total()
         self.log_farm(self.t("farm.ready"))
+
+    def render_farm_repetition_controls(self):
+        if not hasattr(self, "farm_repetitions_status_var"):
+            return
+        repeat_items = [item for item in getattr(self, "farm_items", []) if item.get("ativarRepeticao")]
+        if not repeat_items:
+            self.farm_repetitions_status_var.set(self.t("farm.no_repeat_macros"))
+            return
+        self.farm_repetitions_status_var.set(self.t("farm.global_repeats_hint"))
 
     def load_farm_macros(self):
         items = []
@@ -2968,20 +3304,15 @@ class MacroApp(ctk.CTk):
                 "cor": self.normalized_macro_color(data),
                 "possicaoMarca": bool(data.get("possicaoMarca", False)),
                 "posicaoCarro": bool(data.get("posicaoCarro", False)),
+                "posicaoUltimoCarro": bool(data.get("posicaoUltimoCarro", False)),
                 "ativarRepeticao": bool(data.get("ativarRepeticao", False)),
+                "maestria": bool(data.get("maestria", False)),
+                "manual": str(data.get("manual", "") or ""),
                 "kind": data.get("kind"),
                 "matrix": data.get("matrix"),
                 "events": data.get("events", []),
             }
             saved = self.farm_config.get("macros", {}).get(self.farm_macro_config_key(item), {})
-            matrix = data.get("matrix") or {}
-            item["repeats_var"] = tk.StringVar(value=str(saved.get("repeticoes", 1)))
-            item["row_var"] = tk.StringVar(value=str(saved.get("linha", matrix.get("target_row", 1))))
-            item["column_var"] = tk.StringVar(value=str(saved.get("coluna", matrix.get("target_column", 1))))
-            item["up_var"] = tk.StringVar(value=str(saved.get("cima", 0)))
-            item["down_var"] = tk.StringVar(value=str(saved.get("baixo", 0)))
-            item["left_var"] = tk.StringVar(value=str(saved.get("esquerda", 0)))
-            item["right_var"] = tk.StringVar(value=str(saved.get("direita", 0)))
             item["ignore_var"] = tk.BooleanVar(value=bool(saved.get("ignorarItem", False)))
             items.append(item)
         return sorted(items, key=lambda item: item["ordem"])
@@ -2999,44 +3330,41 @@ class MacroApp(ctk.CTk):
         item["row_card"] = row
         row.grid(row=index, column=0, padx=0, pady=(0, 10), sticky="ew")
         row.grid_columnconfigure(1, weight=1)
-        row.grid_columnconfigure(2, weight=0, minsize=430)
-        position_rowspan = 3 if self.is_composite_farm_macro(item) else 2
+        row.grid_columnconfigure(2, weight=0, minsize=170)
         ctk.CTkLabel(row, text="::", text_color=("gray45", "gray60"), font=ctk.CTkFont(size=18, weight="bold")).grid(
-            row=0, column=0, rowspan=position_rowspan, padx=(18, 12), pady=16
+            row=0, column=0, padx=(18, 12), pady=16
         )
         title = ctk.CTkFrame(row, fg_color="transparent")
         title.grid(row=0, column=1, padx=(0, 18), pady=(16, 8), sticky="w")
-        macro_color = self.normalized_macro_color(item)
-        if macro_color != DEFAULT_MACRO_COLOR:
-            ctk.CTkLabel(
+        if item.get("manual"):
+            ctk.CTkButton(
                 title,
-                text="*",
-                font=ctk.CTkFont(size=20, weight="bold"),
-                text_color=macro_color,
+                text="",
+                image=self.get_folder_icon_image(),
+                width=28,
+                height=28,
+                corner_radius=6,
+                fg_color="#facc15",
+                hover_color="#eab308",
+                command=lambda selected=item: self.open_farm_macro_popup(selected),
             ).pack(side="left", padx=(0, 8))
         ctk.CTkLabel(title, text=item["display_name"], font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
-        if self.is_composite_farm_macro(item):
+        for label_text, label_color in self.farm_position_badges(item):
             ctk.CTkLabel(
                 title,
-                text=self.t("farm.composite"),
+                text=label_text,
                 height=24,
                 corner_radius=4,
-                fg_color="#e11d48",
+                fg_color=label_color,
                 text_color="#ffffff",
                 font=ctk.CTkFont(size=12, weight="bold"),
             ).pack(side="left", padx=(10, 0))
 
         actions = ctk.CTkFrame(row, fg_color="transparent")
         actions.grid(row=0, column=2, padx=(12, 18), pady=(16, 8), sticky="e")
-        if item.get("ativarRepeticao"):
-            ctk.CTkLabel(actions, text=self.t("farm.repeats")).pack(side="left", padx=(0, 10))
-            repeat_entry = ctk.CTkEntry(actions, width=120, textvariable=item["repeats_var"])
-            repeat_entry.pack(side="left")
-            repeat_entry.bind("<KeyRelease>", lambda _event=None: self.update_farm_total())
-        ctk.CTkLabel(actions, text=self.t("farm.ignore_item")).pack(side="left", padx=(16, 8))
         ignore_button = ctk.CTkButton(
             actions,
-            width=92,
+            width=118,
             height=28,
             corner_radius=6,
             command=lambda selected=item: self.toggle_farm_ignore_item(selected),
@@ -3045,40 +3373,154 @@ class MacroApp(ctk.CTk):
         item["ignore_button"] = ignore_button
         self.update_farm_ignore_card(item)
 
-        if item["possicaoMarca"]:
-            brand_card = self.create_farm_position_subcard(row)
-            brand_card.grid(row=1, column=1, columnspan=2, padx=(0, 18), pady=(4, 10), sticky="ew")
-            ctk.CTkLabel(
-                brand_card,
-                text=self.t("farm.brand_position"),
-                font=ctk.CTkFont(size=14, weight="bold"),
-            ).grid(row=0, column=0, padx=14, pady=12, sticky="w")
-            position = ctk.CTkFrame(brand_card, fg_color="transparent")
-            position.grid(row=0, column=1, padx=14, pady=12, sticky="e")
-            for label_key, variable in (
-                ("farm.up", item["up_var"]),
-                ("farm.down", item["down_var"]),
-                ("farm.left", item["left_var"]),
-                ("farm.right", item["right_var"]),
-            ):
-                ctk.CTkLabel(position, text=self.t(label_key)).pack(side="left", padx=(0, 6))
-                ctk.CTkEntry(position, width=52, textvariable=variable).pack(side="left", padx=(0, 10))
+    def get_folder_icon_image(self):
+        if not hasattr(self, "folder_icon_image"):
+            try:
+                self.folder_icon_image = tk.PhotoImage(file=str(FOLDER_ICON_FILE))
+            except tk.TclError:
+                self.folder_icon_image = None
+        return self.folder_icon_image
 
-        if item["posicaoCarro"]:
-            row_index = 2 if item["possicaoMarca"] else 1
-            car_card = self.create_farm_position_subcard(row)
-            car_card.grid(row=row_index, column=1, columnspan=2, padx=(0, 18), pady=(4, 10), sticky="ew")
-            ctk.CTkLabel(
-                car_card,
-                text=self.t("farm.car_position"),
-                font=ctk.CTkFont(size=14, weight="bold"),
-            ).grid(row=0, column=0, padx=14, pady=12, sticky="w")
-            position = ctk.CTkFrame(car_card, fg_color="transparent")
-            position.grid(row=0, column=1, padx=14, pady=12, sticky="e")
-            ctk.CTkLabel(position, text=self.t("farm.row")).pack(side="left", padx=(0, 8))
-            ctk.CTkEntry(position, width=76, textvariable=item["row_var"]).pack(side="left", padx=(0, 16))
-            ctk.CTkLabel(position, text=self.t("farm.column")).pack(side="left", padx=(0, 8))
-            ctk.CTkEntry(position, width=76, textvariable=item["column_var"]).pack(side="left")
+    def open_farm_parameters_tutorial(self):
+        self.open_manual_popup(self.t("farm.general_parameters"), "parametros_gerais.md")
+
+    def open_farm_macro_popup(self, item):
+        self.open_manual_popup(item.get("display_name") or item.get("name") or self.t("farm.title"), item.get("manual"))
+
+    def open_manual_popup(self, title, manual_name):
+        manual_name = str(manual_name or "")
+        manual_path = MANUAL_DIR / manual_name
+        try:
+            manual_content = manual_path.read_text(encoding="utf-8")
+        except OSError:
+            manual_content = self.t("farm.manual_not_found")
+            manual_path = MANUAL_DIR
+
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.geometry("820x640")
+        dialog.minsize(640, 460)
+        dialog.resizable(True, True)
+        dialog.transient(self)
+        dialog.grid_columnconfigure(0, weight=1)
+        dialog.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(
+            dialog,
+            text=title,
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=0, column=0, padx=22, pady=(22, 8), sticky="w")
+        manual_frame = ctk.CTkScrollableFrame(dialog, fg_color=("#f8fbff", "#07111f"))
+        manual_frame.grid(row=1, column=0, padx=22, pady=(0, 14), sticky="nsew")
+        manual_frame.grid_columnconfigure(0, weight=1)
+        dialog.manual_images = []
+        self.render_manual_markdown(manual_frame, manual_content, manual_path.parent, dialog.manual_images)
+        ctk.CTkButton(
+            dialog,
+            text=self.t("common.close"),
+            fg_color="#5c5f66",
+            hover_color="#4d5056",
+            command=dialog.destroy,
+        ).grid(row=2, column=0, padx=22, pady=(0, 22), sticky="ew")
+
+    def render_manual_markdown(self, parent, content, base_dir, image_refs):
+        in_code = False
+        code_lines = []
+        table_lines = []
+        row = 0
+        for raw_line in content.splitlines():
+            line = raw_line.rstrip()
+            if line.strip().startswith("```"):
+                if table_lines:
+                    row = self.add_manual_code_block(parent, table_lines, row)
+                    table_lines = []
+                if in_code:
+                    row = self.add_manual_code_block(parent, code_lines, row)
+                    code_lines = []
+                in_code = not in_code
+                continue
+            if in_code:
+                code_lines.append(line)
+                continue
+            if line.strip().startswith("|"):
+                table_lines.append(line)
+                continue
+            if table_lines:
+                row = self.add_manual_code_block(parent, table_lines, row)
+                table_lines = []
+            row = self.add_manual_markdown_line(parent, line, base_dir, image_refs, row)
+        if code_lines:
+            row = self.add_manual_code_block(parent, code_lines, row)
+        if table_lines:
+            self.add_manual_code_block(parent, table_lines, row)
+
+    def add_manual_markdown_line(self, parent, line, base_dir, image_refs, row):
+        stripped = line.strip()
+        if not stripped:
+            return row
+        if stripped == "---":
+            separator = ctk.CTkFrame(parent, height=1, fg_color=("#d8e0ea", "#20324c"))
+            separator.grid(row=row, column=0, padx=6, pady=12, sticky="ew")
+            return row + 1
+
+        image_match = re.fullmatch(r"!\[(.*?)\]\((.*?)\)", stripped)
+        if image_match:
+            return self.add_manual_image(parent, image_match.group(1), image_match.group(2), base_dir, image_refs, row)
+
+        if stripped.startswith("#"):
+            level = len(stripped) - len(stripped.lstrip("#"))
+            text = self.clean_markdown_text(stripped[level:].strip())
+            size = max(16, 28 - (level * 3))
+            ctk.CTkLabel(parent, text=text, font=ctk.CTkFont(size=size, weight="bold"), anchor="w").grid(
+                row=row, column=0, padx=6, pady=(12, 6), sticky="ew"
+            )
+            return row + 1
+
+        if stripped.startswith("- "):
+            text = f"• {self.clean_markdown_text(stripped[2:])}"
+            ctk.CTkLabel(parent, text=text, anchor="w", justify="left", wraplength=720).grid(
+                row=row, column=0, padx=18, pady=2, sticky="ew"
+            )
+            return row + 1
+
+        ctk.CTkLabel(
+            parent,
+            text=self.clean_markdown_text(stripped),
+            anchor="w",
+            justify="left",
+            wraplength=720,
+        ).grid(row=row, column=0, padx=6, pady=3, sticky="ew")
+        return row + 1
+
+    def add_manual_image(self, parent, alt_text, image_path, base_dir, image_refs, row):
+        resolved = (base_dir / image_path).resolve()
+        try:
+            image = tk.PhotoImage(file=str(resolved))
+        except tk.TclError:
+            ctk.CTkLabel(parent, text=f"{alt_text}: {self.t('farm.manual_image_not_found')}", anchor="w").grid(
+                row=row, column=0, padx=6, pady=6, sticky="ew"
+            )
+            return row + 1
+        while image.width() > 720:
+            image = image.subsample(2, 2)
+        image_refs.append(image)
+        ctk.CTkLabel(parent, text="", image=image).grid(row=row, column=0, padx=6, pady=10, sticky="w")
+        return row + 1
+
+    def add_manual_code_block(self, parent, lines, row):
+        text = "\n".join(lines).strip()
+        if not text:
+            return row
+        box = ctk.CTkTextbox(parent, height=min(180, max(54, (len(lines) + 1) * 24)), wrap="none")
+        box.grid(row=row, column=0, padx=6, pady=8, sticky="ew")
+        box.insert("1.0", text)
+        box.configure(state="disabled")
+        return row + 1
+
+    @staticmethod
+    def clean_markdown_text(text):
+        text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+        text = re.sub(r"`([^`]*)`", r"\1", text)
+        return text
 
     def create_farm_position_subcard(self, parent):
         card = ctk.CTkFrame(
@@ -3091,6 +3533,18 @@ class MacroApp(ctk.CTk):
         card.grid_columnconfigure(0, weight=1)
         card.grid_columnconfigure(1, weight=0)
         return card
+
+    def farm_position_badges(self, item):
+        badges = []
+        if item.get("possicaoMarca"):
+            badges.append((self.t("farm.brand_position"), "#2563eb"))
+        if item.get("posicaoCarro"):
+            badges.append((self.t("farm.car_position"), "#16a34a"))
+        if item.get("posicaoUltimoCarro"):
+            badges.append((self.t("farm.last_car_position"), "#9333ea"))
+        if item.get("maestria"):
+            badges.append((self.t("macro.mastery"), "#f59e0b"))
+        return badges
 
     def update_farm_total(self):
         total = 0
@@ -3108,9 +3562,12 @@ class MacroApp(ctk.CTk):
         if not item.get("ativarRepeticao"):
             return 1
         try:
-            return max(0, int(item["repeats_var"].get()))
+            repeats = max(0, int(self.farm_roulette_quantity_var.get()))
         except ValueError:
             raise ValueError(self.t("farm.invalid_repeats")) from None
+        if item.get("maestria"):
+            return repeats * 3
+        return repeats
 
     def toggle_farm_ignore_item(self, item):
         item["ignore_var"].set(not item["ignore_var"].get())
@@ -3193,6 +3650,8 @@ class MacroApp(ctk.CTk):
         except ValueError:
             messagebox.showerror(self.t("farm.title"), self.t("farm.invalid_interval"))
             return
+        if not self.update_farm_last_car_position():
+            return
         self.save_farm_config()
         try:
             expanded_items = self.build_farm_execution_items(interval_ms)
@@ -3243,27 +3702,26 @@ class MacroApp(ctk.CTk):
         updated = [dict(event) for event in events]
         base_duration = self.events_duration(updated)
         if item.get("possicaoMarca"):
-            position_events = self.build_brand_position_events(item)
+            position_events = self.build_brand_position_events()
             updated.extend(self.shift_events(position_events, base_duration + interval_seconds))
-            final_duration = self.events_duration(updated)
-            if interval_seconds > 0:
-                updated.append({"type": "wait", "t": round(final_duration + interval_seconds, 4)})
-            return updated
+            base_duration = self.events_duration(updated)
         if item.get("posicaoCarro"):
-            row, column = self.farm_car_position_values_for_repeat(item, repeat_index)
+            row, column = self.farm_car_position_values_for_repeat(repeat_index)
             position_events = build_matrix_navigation_events(row, column, DEFAULT_MATRIX_STEP_DELAY)
             updated.extend(self.shift_events(position_events, base_duration + interval_seconds))
-            final_duration = self.events_duration(updated)
-            if interval_seconds > 0:
-                updated.append({"type": "wait", "t": round(final_duration + interval_seconds, 4)})
-            return updated
+            base_duration = self.events_duration(updated)
+        if item.get("posicaoUltimoCarro"):
+            row, column = self.farm_last_car_position_values()
+            position_events = build_matrix_navigation_events(row, column, DEFAULT_MATRIX_STEP_DELAY)
+            updated.extend(self.shift_events(position_events, base_duration + interval_seconds))
+            base_duration = self.events_duration(updated)
         if interval_seconds > 0:
             updated.append({"type": "wait", "t": round(base_duration + interval_seconds, 4)})
         return updated
 
     @staticmethod
     def is_composite_farm_macro(item):
-        return bool(item.get("possicaoMarca")) or bool(item.get("posicaoCarro"))
+        return bool(item.get("possicaoMarca")) or bool(item.get("posicaoCarro")) or bool(item.get("posicaoUltimoCarro"))
 
     def build_composite_farm_events(self, events, item, repeat_index):
         updated = []
@@ -3288,8 +3746,11 @@ class MacroApp(ctk.CTk):
 
     def composite_marker_events(self, marker, item, repeat_index):
         if marker == "insert":
-            return self.build_brand_position_events(item)
-        row, column = self.farm_car_position_values_for_repeat(item, repeat_index)
+            return self.build_brand_position_events()
+        if marker == "end":
+            row, column = self.farm_last_car_position_values()
+            return build_matrix_navigation_events(row, column, DEFAULT_MATRIX_STEP_DELAY)
+        row, column = self.farm_car_position_values_for_repeat(repeat_index)
         return build_matrix_navigation_events(row, column, DEFAULT_MATRIX_STEP_DELAY)
 
     @staticmethod
@@ -3304,10 +3765,12 @@ class MacroApp(ctk.CTk):
             return "insert"
         if value == "delete" and item.get("posicaoCarro"):
             return "delete"
+        if value == "end" and item.get("posicaoUltimoCarro"):
+            return "end"
         return None
 
-    def build_brand_position_events(self, item):
-        counts = self.farm_brand_direction_counts(item)
+    def build_brand_position_events(self):
+        counts = self.farm_brand_direction_counts()
         events = []
         directions = (
             ("up", counts["up"]),
@@ -3329,12 +3792,12 @@ class MacroApp(ctk.CTk):
                 index += 1
         return events
 
-    def farm_brand_direction_counts(self, item):
+    def farm_brand_direction_counts(self):
         fields = {
-            "up": item["up_var"],
-            "down": item["down_var"],
-            "left": item["left_var"],
-            "right": item["right_var"],
+            "up": self.farm_brand_up_var,
+            "down": self.farm_brand_down_var,
+            "left": self.farm_brand_left_var,
+            "right": self.farm_brand_right_var,
         }
         counts = {}
         for direction, variable in fields.items():
@@ -3353,10 +3816,10 @@ class MacroApp(ctk.CTk):
             duration = max(duration, start + float(event.get("duration", 0)))
         return duration
 
-    def farm_position_values(self, item):
+    def farm_position_values(self, row_var, column_var):
         try:
-            row = int(item["row_var"].get())
-            column = int(item["column_var"].get())
+            row = int(row_var.get())
+            column = int(column_var.get())
         except ValueError as exc:
             raise ValueError(self.t("farm.invalid_position")) from exc
         if row < 1 or row > 3:
@@ -3365,8 +3828,14 @@ class MacroApp(ctk.CTk):
             raise ValueError(self.t("smart.invalid_column"))
         return row, column
 
-    def farm_car_position_values_for_repeat(self, item, repeat_index):
-        row, column = self.farm_position_values(item)
+    def farm_car_position_values(self):
+        return self.farm_position_values(self.farm_car_row_var, self.farm_car_column_var)
+
+    def farm_last_car_position_values(self):
+        return self.farm_position_values(self.farm_last_car_row_var, self.farm_last_car_column_var)
+
+    def farm_car_position_values_for_repeat(self, repeat_index):
+        row, column = self.farm_car_position_values()
         return matrix_target_for_repeat({"target_row": row, "target_column": column}, repeat_index)
 
     @staticmethod
