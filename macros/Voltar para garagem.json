@@ -1,34 +1,34 @@
 {
   "version": 1,
   "name": "Voltar para garagem",
-  "updated_at": "2026-06-03 11:11:16",
+  "updated_at": "2026-06-04 12:25:49",
   "events": [
     {
-      "type": "key_hold",
       "key": {
         "kind": "special",
         "value": "esc"
       },
-      "t": 2.188,
-      "duration": 0.1612
+      "duration": 0.1612,
+      "t": 4.188,
+      "type": "key_hold"
     },
     {
-      "type": "key_hold",
       "key": {
         "kind": "special",
         "value": "page_down"
       },
-      "t": 4.727,
-      "duration": 0.139
+      "duration": 0.139,
+      "t": 5.727,
+      "type": "key_hold"
     },
     {
-      "type": "key_hold",
       "key": {
         "kind": "special",
         "value": "page_down"
       },
-      "t": 5.746,
-      "duration": 0.121
+      "duration": 0.121,
+      "t": 6.746,
+      "type": "key_hold"
     },
     {
       "type": "key_hold",
@@ -49,18 +49,21 @@
       "duration": 0.165
     },
     {
-      "type": "key_hold",
       "key": {
         "kind": "char",
-        "value": "0"
+        "value": "w"
       },
+      "duration": 0.1109,
       "t": 17.6113,
-      "duration": 0.1109
+      "type": "key_hold"
     }
   ],
   "ordem": 6,
   "possicaoMarca": false,
   "posicaoCarro": false,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": false,
+  "maestria": false,
+  "manual": "",
   "cor": "#07111f"
 }

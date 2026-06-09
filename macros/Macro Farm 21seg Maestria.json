@@ -19,7 +19,7 @@
         "value": "w"
       },
       "t": 6.1191,
-      "duration": 25.5369
+      "duration": 27.5369
     },
     {
       "type": "key_hold",
@@ -27,7 +27,7 @@
         "kind": "char",
         "value": "x"
       },
-      "t": 36.6239,
+      "t": 38.6239,
       "duration": 0.1521
     },
     {
@@ -36,16 +36,16 @@
         "kind": "special",
         "value": "enter"
       },
-      "t": 37.9109,
+      "t": 40.1109,
       "duration": 0.1295
     },
     {
       "type": "key_hold",
       "key": {
         "kind": "char",
-        "value": "0"
+        "value": "q"
       },
-      "t": 45.9602,
+      "t": 47.9602,
       "duration": 0.1468
     }
   ],
