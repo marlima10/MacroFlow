@@ -7,27 +7,92 @@ MacroFlow e um aplicativo desktop para Windows que grava, exibe, edita, salva e 
 O projeto foi separado em modulos para facilitar manutencao, leitura e evolucao:
 
 ```text
-outputs/
+macroflow/
 +-- macro_recorder.py
 +-- requirements.txt
 +-- README.md
-+-- PROJECT_STRUCTURE.md
 +-- config/
 +   +-- app.json
++   +-- farm_subaru_impreza_22b.json
++   +-- shortcuts.json
 +-- language/
 +   +-- en.json
 +   +-- pt-br.json
-+-- shortcuts.json
 +-- macros/
 +-- macroflow/
     +-- __init__.py
+    +-- PROJECT_STRUCTURE.md
     +-- app.py
+    +-- application/
+    |   +-- dtos/
+    |   +-- use_cases/
+    +-- domain/
+    |   +-- entities/
+    |   +-- repositories/
+    |   +-- value_objects/
+    +-- infrastructure/
+    |   +-- filesystem/
+    |   +-- repositories/
+    +-- presentation/
+    |   +-- app.py
+    |   +-- components/
+    |   +-- view_models/
+    |   +-- views/
     +-- constants.py
     +-- engine.py
     +-- input_utils.py
     +-- smart_engine.py
     +-- timeline.py
 ```
+
+## Arquitetura em camadas
+
+O MacroFlow agora segue uma organizacao inspirada em Clean Architecture. A migracao e incremental: o `macroflow/app.py` ainda concentra parte importante da tela, mas persistencia JSON, ports, entidades e alguns casos de uso ja foram separados.
+
+### `macroflow/domain/`
+
+Camada de regra pura.
+
+Responsabilidades:
+
+- definir entidades como `Macro`, `MacroMetadata` e `FarmItem`
+- definir value objects como `MatrixPosition` e `Shortcut`
+- definir interfaces de repositorio, tambem chamadas de ports
+- nao depender de CustomTkinter, arquivos JSON, `pynput` ou detalhes externos
+
+### `macroflow/application/`
+
+Camada de casos de uso.
+
+Responsabilidades:
+
+- orquestrar acoes do sistema sem conhecer a interface
+- expor operacoes como salvar macro e calcular a posicao do ultimo carro
+- receber dados simples e devolver resultados simples para a camada de apresentacao
+
+### `macroflow/infrastructure/`
+
+Camada de adaptadores externos.
+
+Responsabilidades:
+
+- implementar repositorios JSON
+- ler e gravar `config/app.json`, `config/farm_subaru_impreza_22b.json`, `config/shortcuts.json` e macros em `macros/` durante o desenvolvimento
+- centralizar caminhos de filesystem usados pelos adaptadores
+
+No executavel portable, esses arquivos continuam sendo gravados ao lado do `.exe`, nas pastas `config/` e `macros/`. Isso permite que o usuario final edite/copie seus dados sem entrar nos arquivos internos do pacote.
+
+### `macroflow/presentation/`
+
+Camada de interface.
+
+Responsabilidades:
+
+- servir como ponto de entrada visual por `macroflow.presentation.app`
+- agrupar futuras telas, componentes e view models
+- manter CustomTkinter e detalhes de layout afastados das regras puras
+
+Nesta etapa, `presentation/app.py` delega para `macroflow/app.py`. As proximas extrações naturais sao mover cards, popups, timeline visual da tela e view models para `presentation/components`, `presentation/views` e `presentation/view_models`.
 
 ## Arquivos principais
 
@@ -37,14 +102,14 @@ Arquivo de entrada do programa.
 
 Responsabilidades:
 
-- importar `main` de `macroflow.app`
+- importar `main` de `macroflow.presentation.app`
 - iniciar a aplicacao quando executado pelo Python
 
 Este arquivo deve continuar pequeno. A logica do app nao deve ser colocada aqui.
 
 ### `macroflow/app.py`
 
-Modulo da interface grafica.
+Modulo principal da interface grafica.
 
 Responsabilidades:
 
@@ -53,7 +118,7 @@ Responsabilidades:
 - montar barra lateral, cabecalho, painel ao vivo, timeline, tabela e editor
 - exibir a tela de configuracoes com idioma, tema e inicializacao
 - carregar textos traduzidos dos arquivos em `language/`
-- salvar preferencias gerais em `config/app.json`
+- salvar preferencias gerais em `config/app.json` no modo desenvolvimento
 - processar eventos enviados pelo motor de macros
 - salvar, carregar, excluir e limpar macros
 - atualizar a tabela e a timeline visual
@@ -61,6 +126,7 @@ Responsabilidades:
 - mostrar contagem regressiva antes da gravacao
 - exibir alerta verde piscando durante reproducao
 - mostrar atalhos em cards e abrir a tela de edicao de atalhos
+- consumir repositorios e casos de uso das novas camadas
 
 Quando mexer aqui:
 
@@ -69,6 +135,10 @@ Quando mexer aqui:
 - mudar textos visuais
 - mudar comportamento de clique na interface
 - alterar edicao da tabela
+
+Observacao:
+
+- este modulo ainda e grande por compatibilidade; novas regras de negocio devem nascer em `application/` e novas implementacoes externas devem nascer em `infrastructure/`
 
 ### `macroflow/engine.py`
 
@@ -156,10 +226,10 @@ Modulo de constantes e caminhos.
 Responsabilidades:
 
 - definir o diretorio principal do app
-- definir a pasta onde as macros sao salvas
-- definir o arquivo `shortcuts.json`
+- definir a pasta onde as macros sao salvas em desenvolvimento e no portable
+- definir o arquivo `config/shortcuts.json` em desenvolvimento
 - definir os atalhos padrao
-- garantir que a pasta `macros/` exista
+- garantir que as pastas de dados existam
 
 Quando mexer aqui:
 
@@ -175,6 +245,17 @@ Responsabilidades:
 - guardar o idioma selecionado
 - guardar o tema selecionado
 - guardar se o app deve iniciar com o Windows
+
+### `config/farm_subaru_impreza_22b.json`
+
+Arquivo de preferencias da tela Farm Subaru.
+
+Responsabilidades:
+
+- guardar intervalo de execucao
+- guardar quantidade de roletas
+- guardar posicoes gerais usadas pelo farm
+- guardar flags como desligar o PC ao finalizar
 
 ### `language/pt-br.json` e `language/en.json`
 
@@ -196,7 +277,7 @@ Lista as dependencias Python do projeto:
 - `opencv-python`: detecta borda verde e regioes visuais
 - `pytesseract`: le texto dos cards via OCR
 
-### `shortcuts.json`
+### `config/shortcuts.json`
 
 Arquivo criado automaticamente quando o usuario edita atalhos.
 
@@ -237,7 +318,7 @@ Cada macro salva contem:
 3. `MacroApp` monta a interface.
 4. `MacroApp` cria o `MacroEngine`.
 5. Os listeners de teclado e mouse sao iniciados.
-6. A lista de macros salvas e carregada da pasta `macros/`.
+6. A lista de macros salvas e carregada da pasta `macros/` no modo desenvolvimento.
 
 ### Ao gravar uma macro
 
@@ -253,7 +334,7 @@ Cada macro salva contem:
 
 1. O usuario informa o nome da macro.
 2. `MacroApp` cria um nome seguro para arquivo.
-3. A macro e salva em `macros/<nome>.json`.
+3. A macro e salva em `macros/<nome>.json` no modo desenvolvimento.
 4. A lista lateral de macros e atualizada.
 
 ### Ao reproduzir uma macro

@@ -1,0 +1,156 @@
+{
+  "updated_at": "2026-06-09 17:21:15",
+  "interval_ms": "1200",
+  "roulette_quantity": "16",
+  "shutdown_on_finish": false,
+  "positions": {
+    "brand": {
+      "cima": "3",
+      "baixo": "0",
+      "esquerda": "0",
+      "direita": "3"
+    },
+    "car": {
+      "linha": "1",
+      "coluna": "5"
+    },
+    "last_car": {
+      "linha": "1",
+      "coluna": "10"
+    }
+  },
+  "macros": {
+    "Macro Farm 21seg Maestria.json": {
+      "name": "Macro Farm 21seg Maestria",
+      "ordem": 4,
+      "cor": "#14532d",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": true,
+      "maestria": true
+    },
+    "Sair farm maestria.json": {
+      "name": "Sair farm maestria",
+      "ordem": 5,
+      "cor": "#07111f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Voltar para garagem.json": {
+      "name": "Voltar para garagem",
+      "ordem": 6,
+      "cor": "#07111f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Acessar subaru na coleção.json": {
+      "name": "Acessar subaru na coleção",
+      "ordem": 7,
+      "cor": "#07111f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Comprar Subaru Impreza 22B da coleção.json": {
+      "name": "Comprar Subaru Impreza 22B da coleção",
+      "ordem": 8,
+      "cor": "#07111f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": true,
+      "maestria": false
+    },
+    "Sair da Coleção.json": {
+      "name": "Sair da Coleção",
+      "ordem": 9,
+      "cor": "#07111f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Preparar compra roleta (Gastar Maestria).json": {
+      "name": "Preparar compra roleta (Gastar Maestria)",
+      "ordem": 10,
+      "cor": "#07111f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Gastar maestria (Comprar Roleta).json": {
+      "name": "Gastar maestria (Comprar Roleta)",
+      "ordem": 11,
+      "cor": "#14532d",
+      "ignorarItem": false,
+      "possicaoMarca": true,
+      "posicaoCarro": true,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": true,
+      "maestria": false
+    },
+    "Excluir Subaru do Farm Pegar Subaru Impreza do Farm.json": {
+      "name": "[Excluir Subaru do Farm] Pegar Subaru Impreza do Farm",
+      "ordem": 12,
+      "cor": "#78350f",
+      "ignorarItem": false,
+      "possicaoMarca": true,
+      "posicaoCarro": true,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Excluir Subaru do Farm Posicionar no ultimo subaru do farm para começar a excluir.json": {
+      "name": "[Excluir Subaru do Farm] Posicionar no ultimo subaru do farm para começar a excluir",
+      "ordem": 13,
+      "cor": "#78350f",
+      "ignorarItem": false,
+      "possicaoMarca": true,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": true,
+      "ativarRepeticao": false,
+      "maestria": false
+    },
+    "Excluir Subaru do Farm Excluir subaru usado no farm.json": {
+      "name": "[Excluir Subaru do Farm] Excluir subaru usado no farm",
+      "ordem": 14,
+      "cor": "#78350f",
+      "ignorarItem": false,
+      "possicaoMarca": false,
+      "posicaoCarro": false,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": true,
+      "maestria": false
+    },
+    "Tirar Foro.json": {
+      "name": "Tirar Foro",
+      "ordem": 15,
+      "cor": "#07111f",
+      "ignorarItem": true,
+      "possicaoMarca": false,
+      "posicaoCarro": true,
+      "posicaoUltimoCarro": false,
+      "ativarRepeticao": true,
+      "maestria": false
+    }
+  }
+}

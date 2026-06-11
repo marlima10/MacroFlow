@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import customtkinter as ctk
+from PIL import Image
 from pynput import keyboard, mouse
 
 from .constants import (
@@ -33,6 +34,13 @@ from .engine import (
     normalize_playback_events,
     resolve_playlist_item_for_repeat,
 )
+from .application.use_cases.calculate_last_car_position import CalculateLastCarPosition
+from .application.use_cases.save_macro import SaveMacro
+from .domain.value_objects.matrix_position import MatrixPosition
+from .infrastructure.repositories.json_config_repository import JsonAppConfigRepository, JsonFarmConfigRepository
+from .infrastructure.repositories.json_language_repository import JsonLanguageRepository
+from .infrastructure.repositories.json_macro_repository import JsonMacroRepository
+from .infrastructure.repositories.json_shortcut_repository import JsonShortcutRepository
 from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
 from .smart_engine import SmartMacroEngine
 from .timeline import render_timeline
@@ -87,6 +95,13 @@ patch_customtkinter_entry_placeholder()
 
 class MacroApp(ctk.CTk):
     def __init__(self):
+        self.app_config_repository = JsonAppConfigRepository(APP_CONFIG_FILE)
+        self.farm_config_repository = JsonFarmConfigRepository(FARM_CONFIG_FILE)
+        self.language_repository = JsonLanguageRepository(LANGUAGE_DIR)
+        self.shortcut_repository = JsonShortcutRepository(SHORTCUTS_FILE, DEFAULT_SHORTCUTS)
+        self.macro_repository = JsonMacroRepository()
+        self.save_macro_use_case = SaveMacro(self.macro_repository)
+        self.calculate_last_car_position_use_case = CalculateLastCarPosition()
         self.app_config = self.load_app_config()
         ctk.set_appearance_mode(self.app_config["theme"])
         ctk.set_default_color_theme("blue")
@@ -192,15 +207,7 @@ class MacroApp(ctk.CTk):
         self.focus_force()
 
     def load_app_config(self):
-        default_config = {"language": "pt-br", "theme": "Dark", "start_with_windows": False, "farm_mode": False}
-        if not APP_CONFIG_FILE.exists():
-            APP_CONFIG_FILE.write_text(json.dumps(default_config, indent=2), encoding="utf-8")
-            return default_config
-        try:
-            saved_config = json.loads(APP_CONFIG_FILE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            saved_config = {}
-        return {**default_config, **saved_config}
+        return self.app_config_repository.load()
 
     def save_app_config(self):
         self.app_config.update(
@@ -211,47 +218,10 @@ class MacroApp(ctk.CTk):
                 "farm_mode": self.farm_mode_var.get(),
             }
         )
-        APP_CONFIG_FILE.write_text(json.dumps(self.app_config, indent=2), encoding="utf-8")
+        self.app_config_repository.save(self.app_config)
 
     def load_farm_config(self):
-        default_positions = {
-            "brand": {"cima": 0, "baixo": 0, "esquerda": 0, "direita": 0},
-            "car": {"linha": 1, "coluna": 1},
-            "last_car": {"linha": 1, "coluna": 1},
-        }
-        if not FARM_CONFIG_FILE.exists():
-            return {"interval_ms": 1000, "shutdown_on_finish": False, "positions": default_positions, "macros": {}}
-        try:
-            data = json.loads(FARM_CONFIG_FILE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return {"interval_ms": 1000, "shutdown_on_finish": False, "positions": default_positions, "macros": {}}
-        if not isinstance(data, dict):
-            return {"interval_ms": 1000, "shutdown_on_finish": False, "positions": default_positions, "macros": {}}
-        macros = data.get("macros")
-        if not isinstance(macros, dict):
-            macros = {}
-        roulette_quantity = data.get("roulette_quantity", data.get("repeticoes", 1))
-        if "roulette_quantity" not in data:
-            for saved_macro in macros.values():
-                if isinstance(saved_macro, dict) and "repeticoes" in saved_macro:
-                    roulette_quantity = saved_macro.get("repeticoes", 1)
-                    break
-        positions = data.get("positions")
-        if not isinstance(positions, dict):
-            positions = {}
-        merged_positions = {}
-        for group, defaults in default_positions.items():
-            saved_group = positions.get(group, {})
-            if not isinstance(saved_group, dict):
-                saved_group = {}
-            merged_positions[group] = {**defaults, **saved_group}
-        return {
-            "interval_ms": data.get("interval_ms", 1000),
-            "roulette_quantity": roulette_quantity,
-            "shutdown_on_finish": bool(data.get("shutdown_on_finish", False)),
-            "positions": merged_positions,
-            "macros": macros,
-        }
+        return self.farm_config_repository.load()
 
     def save_farm_config(self):
         data = {
@@ -274,7 +244,7 @@ class MacroApp(ctk.CTk):
                 "ativarRepeticao": bool(item.get("ativarRepeticao", False)),
                 "maestria": bool(item.get("maestria", False)),
             }
-        FARM_CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.farm_config_repository.save(data)
         self.farm_config = data
 
     def current_farm_positions_config(self):
@@ -296,12 +266,7 @@ class MacroApp(ctk.CTk):
         }
 
     def load_language(self, language):
-        language_file = LANGUAGE_DIR / f"{language}.json"
-        fallback_file = LANGUAGE_DIR / "pt-br.json"
-        try:
-            return json.loads(language_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return json.loads(fallback_file.read_text(encoding="utf-8"))
+        return self.language_repository.load(language)
 
     def t(self, key):
         value = self.texts
@@ -2408,26 +2373,10 @@ class MacroApp(ctk.CTk):
         self.apply_shortcuts(dict(DEFAULT_SHORTCUTS))
 
     def load_shortcuts(self):
-        if not SHORTCUTS_FILE.exists():
-            return dict(DEFAULT_SHORTCUTS)
-        try:
-            data = json.loads(SHORTCUTS_FILE.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return dict(DEFAULT_SHORTCUTS)
-
-        shortcuts = dict(DEFAULT_SHORTCUTS)
-        for action in shortcuts:
-            if action in data:
-                shortcuts[action] = normalize_shortcut(str(data[action]))
-        if shortcuts.get("close") == "esc":
-            shortcuts["close"] = DEFAULT_SHORTCUTS["close"]
-        values = list(shortcuts.values())
-        if any(not is_valid_shortcut(value) for value in values) or len(set(values)) != len(values):
-            return dict(DEFAULT_SHORTCUTS)
-        return shortcuts
+        return self.shortcut_repository.load()
 
     def save_shortcuts(self):
-        SHORTCUTS_FILE.write_text(json.dumps(self.shortcuts, indent=2), encoding="utf-8")
+        self.shortcut_repository.save(self.shortcuts)
 
     def set_playback_alert(self, is_playing):
         if not hasattr(self, "playback_alert"):
@@ -2599,13 +2548,14 @@ class MacroApp(ctk.CTk):
             messagebox.showerror(self.t("farm.calculate_last_car"), self.t("farm.invalid_calculator_values"))
             return False
 
-        target_row, target_column = matrix_target_for_repeat(
-            {"target_row": row, "target_column": column},
-            repeats - 1,
-        )
-        self.farm_last_car_row_var.set(str(target_row))
-        self.farm_last_car_column_var.set(str(target_column))
-        result = f"L{target_row}C{target_column}"
+        try:
+            target = self.calculate_last_car_position_use_case.execute(MatrixPosition(row, column), repeats)
+        except ValueError:
+            messagebox.showerror(self.t("farm.calculate_last_car"), self.t("farm.invalid_calculator_values"))
+            return False
+        self.farm_last_car_row_var.set(str(target.linha))
+        self.farm_last_car_column_var.set(str(target.coluna))
+        result = f"L{target.linha}C{target.coluna}"
         self.log_farm(f"{self.t('farm.last_car_result')}: {result}")
         self.save_farm_config()
         return True
@@ -2772,7 +2722,7 @@ class MacroApp(ctk.CTk):
             "events": self.events,
             **metadata,
         }
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        self.save_macro_use_case.execute(path, data)
         self.current_file = path
         self.selected_macro_path = path
         self.refresh_macro_list(select_path=path)
@@ -2842,7 +2792,7 @@ class MacroApp(ctk.CTk):
             **metadata,
         }
         try:
-            path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            self.macro_repository.save(path, data)
         except OSError as exc:
             messagebox.showerror(
                 self.t("macro.export_error_title"),
@@ -2931,18 +2881,12 @@ class MacroApp(ctk.CTk):
 
     @staticmethod
     def read_macro_data(path):
-        if path is None:
-            return {}
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
+        return JsonMacroRepository().read(path)
 
     def load_macro(self, path):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            messagebox.showerror("Macro invalida", f"Nao foi possivel carregar {path.name}.\n\n{exc}")
+        data = self.macro_repository.read(path)
+        if not data:
+            messagebox.showerror("Macro invalida", f"Nao foi possivel carregar {path.name}.")
             self.status_var.set(f"Erro ao carregar macro: {path.name}")
             return
 
@@ -3376,8 +3320,13 @@ class MacroApp(ctk.CTk):
     def get_folder_icon_image(self):
         if not hasattr(self, "folder_icon_image"):
             try:
-                self.folder_icon_image = tk.PhotoImage(file=str(FOLDER_ICON_FILE))
-            except tk.TclError:
+                folder_image = Image.open(FOLDER_ICON_FILE)
+                self.folder_icon_image = ctk.CTkImage(
+                    light_image=folder_image,
+                    dark_image=folder_image,
+                    size=(18, 18),
+                )
+            except (OSError, tk.TclError):
                 self.folder_icon_image = None
         return self.folder_icon_image
 

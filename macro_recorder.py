@@ -1,4 +1,4 @@
-from macroflow.app import main
+from macroflow.presentation.app import main
 
 
 if __name__ == "__main__":

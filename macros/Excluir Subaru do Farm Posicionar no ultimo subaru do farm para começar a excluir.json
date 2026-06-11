@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "name": "[Excluir Subaru do Farm] Posicionar no ultimo subaru do farm para come\u00e7ar a excluir",
+  "updated_at": "2026-06-03 13:20:07",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "backspace"
+      },
+      "t": 0.9973,
+      "duration": 0.224
+    },
+    {
+      "key": {
+        "kind": "special",
+        "value": "insert"
+      },
+      "duration": 0.121,
+      "t": 2.3813,
+      "type": "key_hold"
+    },
+    {
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "duration": 0.1749,
+      "t": 3.5075,
+      "type": "key_hold"
+    },
+    {
+      "key": {
+        "kind": "special",
+        "value": "end"
+      },
+      "duration": 0.1562,
+      "t": 6.0672,
+      "type": "key_hold"
+    }
+  ],
+  "ordem": 13,
+  "possicaoMarca": true,
+  "posicaoCarro": false,
+  "posicaoUltimoCarro": true,
+  "ativarRepeticao": false,
+  "cor": "#78350f"
+}

@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "[Excluir Subaru do Farm] Pegar Subaru Impreza do Farm",
+  "updated_at": "2026-06-03 11:59:04",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "backspace"
+      },
+      "t": 1.4854,
+      "duration": 0.169
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "insert"
+      },
+      "t": 3.3834,
+      "duration": 0.117
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 6.7934,
+      "duration": 0.134
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "delete"
+      },
+      "t": 12.9115,
+      "duration": 0.1699
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 14.6724,
+      "duration": 0.143
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 16.4823,
+      "duration": 0.1211
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 23.2095,
+      "duration": 0.1119
+    }
+  ],
+  "ordem": 12,
+  "possicaoMarca": true,
+  "posicaoCarro": true,
+  "ativarRepeticao": false,
+  "cor": "#78350f"
+}

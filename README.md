@@ -33,7 +33,7 @@ python macro_recorder.py
 - `F10`: para reproducao.
 - `F2`: fecha o aplicativo quando a janela esta em foco.
 
-Os atalhos personalizados ficam salvos em `shortcuts.json`.
+Os atalhos personalizados ficam salvos em `config/shortcuts.json`.
 
 ## Cadastro de macro
 

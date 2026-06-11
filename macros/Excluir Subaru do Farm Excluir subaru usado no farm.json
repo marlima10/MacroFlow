@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "name": "[Excluir Subaru do Farm] Excluir subaru usado no farm",
+  "updated_at": "2026-06-03 11:52:43",
+  "events": [
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 1.2098,
+      "duration": 0.147
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 2.9288,
+      "duration": 0.157
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 3.3179,
+      "duration": 0.1699
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 3.6979,
+      "duration": 0.143
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 4.0589,
+      "duration": 0.1519
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 4.845,
+      "duration": 0.1429
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "down"
+      },
+      "t": 6.1227,
+      "duration": 0.1072
+    },
+    {
+      "type": "key_hold",
+      "key": {
+        "kind": "special",
+        "value": "enter"
+      },
+      "t": 7.0868,
+      "duration": 0.099
+    }
+  ],
+  "ordem": 14,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "ativarRepeticao": true,
+  "cor": "#78350f"
+}
