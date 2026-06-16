@@ -1045,7 +1045,7 @@ class MacroApp(ctk.CTk):
         self.settings_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
         self.settings_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.settings_view.grid_columnconfigure(0, weight=1)
-        self.settings_view.grid_rowconfigure(8, weight=1)
+        self.settings_view.grid_rowconfigure(1, weight=1)
 
         header = ctk.CTkFrame(self.settings_view, fg_color="transparent")
         header.grid(row=0, column=0, padx=34, pady=(28, 18), sticky="ew")
@@ -1072,6 +1072,16 @@ class MacroApp(ctk.CTk):
             text_color=("gray35", "gray72"),
         ).grid(row=1, column=1, sticky="w", pady=(2, 0))
 
+        self.settings_content = ctk.CTkScrollableFrame(
+            self.settings_view,
+            corner_radius=0,
+            fg_color="transparent",
+            scrollbar_button_color=("#c5d1df", "#1a2b42"),
+            scrollbar_button_hover_color=("#aebdce", "#24405f"),
+        )
+        self.settings_content.grid(row=1, column=0, sticky="nsew")
+        self.settings_content.grid_columnconfigure(0, weight=1)
+
         self.create_language_settings_card()
         self.create_theme_settings_card()
         self.create_startup_settings_card()
@@ -1084,7 +1094,7 @@ class MacroApp(ctk.CTk):
 
     def create_settings_section(self, row, title, description, accent, icon_text):
         section = ctk.CTkFrame(
-            self.settings_view,
+            self.settings_content,
             corner_radius=10,
             fg_color=("#eef6ff", "#07111f"),
             border_width=1,
@@ -1264,7 +1274,7 @@ class MacroApp(ctk.CTk):
         )
 
     def create_settings_footer(self):
-        footer = ctk.CTkFrame(self.settings_view, corner_radius=10, fg_color=("#eef3f8", "#07111f"))
+        footer = ctk.CTkFrame(self.settings_content, corner_radius=10, fg_color=("#eef3f8", "#07111f"))
         footer.grid(row=8, column=0, padx=68, pady=(8, 18), sticky="sew")
         footer.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
