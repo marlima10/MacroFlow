@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Sair farm maestria",
-  "updated_at": "2026-06-03 11:11:13",
+  "updated_at": "2026-06-16 18:36:12",
   "events": [
     {
       "type": "key_hold",
@@ -67,9 +67,12 @@
       "duration": 0.1119
     }
   ],
-  "ordem": 5,
+  "ordem": 3,
   "possicaoMarca": false,
   "posicaoCarro": false,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": false,
+  "maestria": false,
+  "manual": "",
   "cor": "#07111f"
 }

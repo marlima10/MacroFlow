@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "[Excluir Subaru do Farm] Excluir subaru usado no farm",
-  "updated_at": "2026-06-03 11:52:43",
+  "updated_at": "2026-06-16 18:38:08",
   "events": [
     {
       "type": "key_hold",
@@ -76,9 +76,12 @@
       "duration": 0.099
     }
   ],
-  "ordem": 14,
+  "ordem": 12,
   "possicaoMarca": false,
   "posicaoCarro": false,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": true,
+  "maestria": false,
+  "manual": "",
   "cor": "#78350f"
 }

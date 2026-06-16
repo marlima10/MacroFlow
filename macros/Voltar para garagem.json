@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Voltar para garagem",
-  "updated_at": "2026-06-04 12:25:49",
+  "updated_at": "2026-06-16 18:36:25",
   "events": [
     {
       "key": {
@@ -58,7 +58,7 @@
       "type": "key_hold"
     }
   ],
-  "ordem": 6,
+  "ordem": 4,
   "possicaoMarca": false,
   "posicaoCarro": false,
   "posicaoUltimoCarro": false,

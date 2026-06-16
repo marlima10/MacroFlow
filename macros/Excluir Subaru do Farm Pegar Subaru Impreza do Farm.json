@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "[Excluir Subaru do Farm] Pegar Subaru Impreza do Farm",
-  "updated_at": "2026-06-03 11:59:04",
+  "updated_at": "2026-06-16 18:38:00",
   "events": [
     {
       "type": "key_hold",
@@ -67,9 +67,12 @@
       "duration": 0.1119
     }
   ],
-  "ordem": 12,
+  "ordem": 10,
   "possicaoMarca": true,
   "posicaoCarro": true,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": false,
+  "maestria": false,
+  "manual": "exclusao_carro.md",
   "cor": "#78350f"
 }

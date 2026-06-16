@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "[Excluir Subaru do Farm] Posicionar no ultimo subaru do farm para come\u00e7ar a excluir",
-  "updated_at": "2026-06-03 13:20:07",
+  "name": "[Excluir Subaru do Farm] Posicionar no ultimo subaru do farm para começar a excluir",
+  "updated_at": "2026-06-16 18:38:03",
   "events": [
     {
       "type": "key_hold",
@@ -40,10 +40,12 @@
       "type": "key_hold"
     }
   ],
-  "ordem": 13,
+  "ordem": 11,
   "possicaoMarca": true,
   "posicaoCarro": false,
   "posicaoUltimoCarro": true,
   "ativarRepeticao": false,
+  "maestria": false,
+  "manual": "",
   "cor": "#78350f"
 }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "Gastar maestria (Comprar Roleta)",
-  "updated_at": "2026-06-02 18:21:20",
+  "updated_at": "2026-06-16 18:37:39",
   "events": [
     {
       "type": "key_hold",
@@ -292,9 +292,12 @@
       "duration": 0.1779
     }
   ],
-  "ordem": 11,
+  "ordem": 9,
   "possicaoMarca": true,
   "posicaoCarro": true,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": true,
+  "maestria": false,
+  "manual": "pegar_roleta.md",
   "cor": "#14532d"
 }

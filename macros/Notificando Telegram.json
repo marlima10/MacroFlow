@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "Notificando Telegram",
+  "updated_at": "2026-06-16 18:35:55",
+  "events": [],
+  "ordem": 1,
+  "possicaoMarca": false,
+  "posicaoCarro": false,
+  "posicaoUltimoCarro": false,
+  "ativarRepeticao": false,
+  "maestria": false,
+  "manual": "telegram_bot.md",
+  "cor": "#07111f"
+}

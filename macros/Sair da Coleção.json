@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "Sair da Cole\u00e7\u00e3o",
-  "updated_at": "2026-06-03 11:11:10",
+  "name": "Sair da Coleção",
+  "updated_at": "2026-06-16 18:37:00",
   "events": [
     {
       "type": "key_hold",
@@ -49,9 +49,12 @@
       "duration": 0.112
     }
   ],
-  "ordem": 9,
+  "ordem": 7,
   "possicaoMarca": false,
   "posicaoCarro": false,
+  "posicaoUltimoCarro": false,
   "ativarRepeticao": false,
+  "maestria": false,
+  "manual": "",
   "cor": "#07111f"
 }
