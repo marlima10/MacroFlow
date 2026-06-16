@@ -7,8 +7,8 @@ class CalculateLastCarPosition:
         start.validate()
         if repeats < 1:
             raise ValueError("A quantidade de repeticoes deve ser maior que zero.")
-        target = matrix_target_for_repeat(
+        target_row, target_column = matrix_target_for_repeat(
             {"target_row": start.linha, "target_column": start.coluna},
             repeats - 1,
         )
-        return MatrixPosition(linha=target["target_row"], coluna=target["target_column"])
+        return MatrixPosition(linha=target_row, coluna=target_column)

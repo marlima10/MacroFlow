@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-09 17:21:15",
+  "updated_at": "2026-06-10 21:55:13",
   "interval_ms": "1200",
   "roulette_quantity": "16",
   "shutdown_on_finish": false,
@@ -137,17 +137,6 @@
       "ignorarItem": false,
       "possicaoMarca": false,
       "posicaoCarro": false,
-      "posicaoUltimoCarro": false,
-      "ativarRepeticao": true,
-      "maestria": false
-    },
-    "Tirar Foro.json": {
-      "name": "Tirar Foro",
-      "ordem": 15,
-      "cor": "#07111f",
-      "ignorarItem": true,
-      "possicaoMarca": false,
-      "posicaoCarro": true,
       "posicaoUltimoCarro": false,
       "ativarRepeticao": true,
       "maestria": false

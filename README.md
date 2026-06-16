@@ -84,6 +84,27 @@ Regras principais:
 - ao parar ou finalizar, os cards voltam para a cor normal;
 - as configuracoes da tela ficam em `config/farm_subaru_impreza_22b.json`.
 
+## Notificacoes Telegram
+
+O MacroFlow pode avisar o status do Farm em um bot do Telegram criado pelo proprio usuario.
+
+Para configurar:
+
+1. Abra o Telegram e procure `@BotFather`.
+2. Envie `/newbot`.
+3. Informe o nome do bot.
+4. Informe um username terminado em `bot`.
+5. Copie o `Bot Token` gerado.
+6. Abra o bot criado e envie `/start`.
+7. Acesse `https://api.telegram.org/botSEU_TOKEN/getUpdates`.
+8. Copie o numero em `"chat":{"id":...}`.
+9. No MacroFlow, abra Configuracoes, informe `Bot Token` e `Chat ID`.
+10. Clique em `Enviar mensagem de teste`.
+
+As notificacoes do Farm sao enviadas sem spam: o app avisa quando o Farm inicia, quando cada macro diferente inicia, quando ocorre erro/interrupcao e quando o Farm finaliza. Ele nao envia uma mensagem para cada repeticao.
+
+O arquivo real `config/telegram.json` fica fora do Git porque pode conter token sensivel. Use `config/telegram.example.json` como referencia.
+
 ## Macros compostos
 
 Um macro e tratado como composto na tela Farm quando possui `posicao da marca`, `posicao do carro` ou ambos.

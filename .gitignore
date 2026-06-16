@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 shortcuts.json
+config/telegram.json
 build/
 dist/
 *.spec

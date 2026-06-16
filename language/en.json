@@ -138,6 +138,17 @@
     "shortcuts_title": "Shortcuts",
     "shortcuts_description": "Configure the default keys for recording, playback, and closing.",
     "shortcuts_button": "Edit shortcuts",
+    "telegram_title": "Telegram",
+    "telegram_description": "Receive Farm alerts in your Telegram bot.",
+    "telegram_enable": "Enable Telegram notifications",
+    "telegram_token": "Bot Token",
+    "telegram_chat_id": "Chat ID",
+    "telegram_save": "Save",
+    "telegram_test": "Send test message",
+    "telegram_saved": "Telegram settings saved.",
+    "telegram_testing": "Sending test message...",
+    "telegram_test_ok": "Test message sent.",
+    "telegram_test_error": "Could not send test:",
     "about_title": "About",
     "about_description": "Information about MacroFlow.",
     "back": "Back"
@@ -242,5 +253,20 @@
     "restore": "Restore default",
     "cancel": "Cancel",
     "save": "Save"
+  },
+  "telegram": {
+    "datetime": "Date/Time",
+    "farm_started": "Farm Subaru started",
+    "macro_started": "Starting macro",
+    "macro": "Macro",
+    "farm_finished": "Farm finished successfully",
+    "farm_stopped": "Farm stopped manually",
+    "farm_error": "Farm error",
+    "error": "Error",
+    "total_time": "Total time",
+    "total_executions": "Planned executions",
+    "send_error": "Could not send Telegram notification:",
+    "test_title": "Telegram test",
+    "test_message": "Test message sent by MacroFlow."
   }
 }

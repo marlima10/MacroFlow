@@ -138,6 +138,17 @@
     "shortcuts_title": "Atalhos",
     "shortcuts_description": "Configure as teclas padrão de gravação, reprodução e fechamento.",
     "shortcuts_button": "Editar atalhos",
+    "telegram_title": "Telegram",
+    "telegram_description": "Receba avisos do Farm no seu bot do Telegram.",
+    "telegram_enable": "Ativar notificações Telegram",
+    "telegram_token": "Bot Token",
+    "telegram_chat_id": "Chat ID",
+    "telegram_save": "Salvar",
+    "telegram_test": "Enviar mensagem de teste",
+    "telegram_saved": "Configuração do Telegram salva.",
+    "telegram_testing": "Enviando mensagem de teste...",
+    "telegram_test_ok": "Mensagem de teste enviada.",
+    "telegram_test_error": "Falha ao enviar teste:",
     "about_title": "Sobre",
     "about_description": "Informações sobre o MacroFlow.",
     "back": "Voltar"
@@ -242,5 +253,20 @@
     "restore": "Restaurar padrão",
     "cancel": "Cancelar",
     "save": "Salvar"
+  },
+  "telegram": {
+    "datetime": "Data/Hora",
+    "farm_started": "Farm Subaru iniciado",
+    "macro_started": "Iniciando macro",
+    "macro": "Macro",
+    "farm_finished": "Farm finalizado com sucesso",
+    "farm_stopped": "Farm interrompido manualmente",
+    "farm_error": "Erro durante o Farm",
+    "error": "Erro",
+    "total_time": "Tempo total",
+    "total_executions": "Execuções planejadas",
+    "send_error": "Falha ao enviar notificação Telegram:",
+    "test_title": "Teste do Telegram",
+    "test_message": "Mensagem de teste enviada pelo MacroFlow."
   }
 }

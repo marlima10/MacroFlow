@@ -25,6 +25,7 @@ from .constants import (
     SHORTCUT_LABELS,
     SHORTCUTS_FILE,
     SPLASH_IMAGE_FILE,
+    TELEGRAM_CONFIG_FILE,
 )
 from .engine import (
     DEFAULT_MATRIX_STEP_DELAY,
@@ -36,11 +37,15 @@ from .engine import (
 )
 from .application.use_cases.calculate_last_car_position import CalculateLastCarPosition
 from .application.use_cases.save_macro import SaveMacro
+from .application.use_cases.send_telegram_notification import SendTelegramNotification
+from .domain.entities.telegram_config import TelegramConfig
 from .domain.value_objects.matrix_position import MatrixPosition
+from .infrastructure.notification.telegram_notifier import TelegramNotifier
 from .infrastructure.repositories.json_config_repository import JsonAppConfigRepository, JsonFarmConfigRepository
 from .infrastructure.repositories.json_language_repository import JsonLanguageRepository
 from .infrastructure.repositories.json_macro_repository import JsonMacroRepository
 from .infrastructure.repositories.json_shortcut_repository import JsonShortcutRepository
+from .infrastructure.repositories.json_telegram_config_repository import JsonTelegramConfigRepository
 from .input_utils import event_details, is_valid_shortcut, normalize_shortcut, shortcut_label
 from .smart_engine import SmartMacroEngine
 from .timeline import render_timeline
@@ -99,9 +104,11 @@ class MacroApp(ctk.CTk):
         self.farm_config_repository = JsonFarmConfigRepository(FARM_CONFIG_FILE)
         self.language_repository = JsonLanguageRepository(LANGUAGE_DIR)
         self.shortcut_repository = JsonShortcutRepository(SHORTCUTS_FILE, DEFAULT_SHORTCUTS)
+        self.telegram_config_repository = JsonTelegramConfigRepository(TELEGRAM_CONFIG_FILE)
         self.macro_repository = JsonMacroRepository()
         self.save_macro_use_case = SaveMacro(self.macro_repository)
         self.calculate_last_car_position_use_case = CalculateLastCarPosition()
+        self.send_telegram_notification_use_case = SendTelegramNotification(TelegramNotifier())
         self.app_config = self.load_app_config()
         ctk.set_appearance_mode(self.app_config["theme"])
         ctk.set_default_color_theme("blue")
@@ -134,6 +141,7 @@ class MacroApp(ctk.CTk):
         self.playlist_selected_index = None
         self.farm_items = []
         self.farm_config = self.load_farm_config()
+        self.telegram_config = self.load_telegram_config()
         self.selected_macro_path = None
         self.pressed_inputs = set()
         self.language = self.app_config["language"]
@@ -141,6 +149,11 @@ class MacroApp(ctk.CTk):
         self.theme_var = tk.StringVar(value=self.app_config["theme"])
         self.startup_var = tk.BooleanVar(value=self.app_config["start_with_windows"])
         self.farm_mode_var = tk.BooleanVar(value=self.app_config["farm_mode"])
+        self.telegram_enabled_var = tk.BooleanVar(value=self.telegram_config.enabled)
+        self.telegram_bot_token_var = tk.StringVar(value=self.telegram_config.bot_token)
+        self.telegram_chat_id_var = tk.StringVar(value=self.telegram_config.chat_id)
+        self.telegram_status_var = tk.StringVar(value="")
+        self.last_notified_farm_macro = None
         self.order_var = tk.StringVar()
         self.brand_position_var = tk.BooleanVar(value=False)
         self.car_position_var = tk.BooleanVar(value=False)
@@ -222,6 +235,66 @@ class MacroApp(ctk.CTk):
 
     def load_farm_config(self):
         return self.farm_config_repository.load()
+
+    def load_telegram_config(self):
+        return self.telegram_config_repository.load()
+
+    def current_telegram_config(self):
+        return TelegramConfig(
+            enabled=bool(self.telegram_enabled_var.get()) if hasattr(self, "telegram_enabled_var") else False,
+            bot_token=self.telegram_bot_token_var.get().strip() if hasattr(self, "telegram_bot_token_var") else "",
+            chat_id=self.telegram_chat_id_var.get().strip() if hasattr(self, "telegram_chat_id_var") else "",
+        )
+
+    def save_telegram_config(self):
+        self.telegram_config = self.current_telegram_config()
+        self.telegram_config_repository.save(self.telegram_config)
+        if hasattr(self, "telegram_status_var"):
+            self.telegram_status_var.set(self.t("settings.telegram_saved"))
+
+    def send_telegram_test_message(self):
+        self.save_telegram_config()
+        self.telegram_status_var.set(self.t("settings.telegram_testing"))
+        message = self.telegram_message(
+            self.t("telegram.test_title"),
+            self.t("telegram.test_message"),
+        )
+        self.send_telegram_notification_use_case.test_async(
+            self.telegram_config,
+            message,
+            self.on_telegram_test_result,
+        )
+
+    def on_telegram_test_result(self, success, error):
+        status = self.t("settings.telegram_test_ok") if success else f"{self.t('settings.telegram_test_error')} {error}"
+        self.ui_queue.put(("telegram_status", status))
+
+    def notify_telegram(self, message, config=None):
+        telegram_config = config or self.telegram_config
+        self.send_telegram_notification_use_case.execute_async(
+            telegram_config,
+            message,
+            self.on_telegram_notification_result,
+        )
+
+    def on_telegram_notification_result(self, success, error):
+        if success:
+            return
+        self.ui_queue.put(("farm_log", f"{self.t('telegram.send_error')} {error}"))
+
+    def telegram_message(self, title, *lines):
+        parts = ["MacroFlow", title]
+        parts.extend(line for line in lines if line)
+        parts.append(f"{self.t('telegram.datetime')}: {time.strftime('%d/%m/%Y %H:%M:%S')}")
+        return "\n".join(parts)
+
+    @staticmethod
+    def format_elapsed_seconds(total_seconds):
+        seconds = max(0, int(total_seconds))
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
     def save_farm_config(self):
         data = {
@@ -972,7 +1045,7 @@ class MacroApp(ctk.CTk):
         self.settings_view = ctk.CTkFrame(self, corner_radius=0, fg_color="#020812")
         self.settings_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self.settings_view.grid_columnconfigure(0, weight=1)
-        self.settings_view.grid_rowconfigure(7, weight=1)
+        self.settings_view.grid_rowconfigure(8, weight=1)
 
         header = ctk.CTkFrame(self.settings_view, fg_color="transparent")
         header.grid(row=0, column=0, padx=34, pady=(28, 18), sticky="ew")
@@ -1004,6 +1077,7 @@ class MacroApp(ctk.CTk):
         self.create_startup_settings_card()
         self.create_farm_mode_settings_card()
         self.create_shortcuts_settings_card()
+        self.create_telegram_settings_card()
         self.create_about_settings_card()
         self.create_settings_footer()
         self.settings_view.grid_remove()
@@ -1129,9 +1203,61 @@ class MacroApp(ctk.CTk):
             command=self.open_shortcut_editor,
         ).grid(row=0, column=3, rowspan=2, padx=(18, 18), pady=18, sticky="e")
 
+    def create_telegram_settings_card(self):
+        section = self.create_settings_section(
+            6,
+            self.t("settings.telegram_title"),
+            self.t("settings.telegram_description"),
+            "#229ed9",
+            "T",
+        )
+        controls = ctk.CTkFrame(section, fg_color="transparent")
+        controls.grid(row=2, column=1, columnspan=3, padx=(0, 18), pady=(0, 18), sticky="ew")
+        controls.grid_columnconfigure(1, weight=1)
+        ctk.CTkSwitch(
+            controls,
+            text=self.t("settings.telegram_enable"),
+            variable=self.telegram_enabled_var,
+            command=self.save_telegram_config,
+        ).grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="w")
+        ctk.CTkLabel(controls, text=self.t("settings.telegram_token")).grid(
+            row=1, column=0, padx=(0, 10), pady=4, sticky="w"
+        )
+        ctk.CTkEntry(controls, textvariable=self.telegram_bot_token_var, show="*", width=360).grid(
+            row=1, column=1, pady=4, sticky="ew"
+        )
+        ctk.CTkLabel(controls, text=self.t("settings.telegram_chat_id")).grid(
+            row=2, column=0, padx=(0, 10), pady=4, sticky="w"
+        )
+        ctk.CTkEntry(controls, textvariable=self.telegram_chat_id_var, width=220).grid(
+            row=2, column=1, pady=4, sticky="w"
+        )
+        buttons = ctk.CTkFrame(controls, fg_color="transparent")
+        buttons.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="ew")
+        ctk.CTkButton(
+            buttons,
+            text=self.t("settings.telegram_save"),
+            width=120,
+            command=self.save_telegram_config,
+        ).pack(side="left")
+        ctk.CTkButton(
+            buttons,
+            text=self.t("settings.telegram_test"),
+            width=180,
+            fg_color="#229ed9",
+            hover_color="#1b82b4",
+            command=self.send_telegram_test_message,
+        ).pack(side="left", padx=(10, 0))
+        ctk.CTkLabel(
+            controls,
+            textvariable=self.telegram_status_var,
+            text_color=("gray35", "gray72"),
+            anchor="w",
+        ).grid(row=4, column=0, columnspan=2, pady=(8, 0), sticky="ew")
+
     def create_about_settings_card(self):
         section = self.create_settings_section(
-            6, self.t("settings.about_title"), self.t("settings.about_description"), "#1877d8", "i"
+            7, self.t("settings.about_title"), self.t("settings.about_description"), "#1877d8", "i"
         )
         ctk.CTkLabel(section, text="›", font=ctk.CTkFont(size=22), text_color=("gray35", "gray72")).grid(
             row=0, column=3, rowspan=2, padx=(18, 28), pady=18
@@ -1139,7 +1265,7 @@ class MacroApp(ctk.CTk):
 
     def create_settings_footer(self):
         footer = ctk.CTkFrame(self.settings_view, corner_radius=10, fg_color=("#eef3f8", "#07111f"))
-        footer.grid(row=7, column=0, padx=68, pady=(8, 18), sticky="sew")
+        footer.grid(row=8, column=0, padx=68, pady=(8, 18), sticky="sew")
         footer.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             footer,
@@ -2194,6 +2320,11 @@ class MacroApp(ctk.CTk):
             self.update_live_inputs()
         elif action == "live_action":
             self.live_action_var.set(payload)
+        elif action == "telegram_status":
+            if hasattr(self, "telegram_status_var"):
+                self.telegram_status_var.set(payload)
+        elif action == "farm_log":
+            self.log_farm(payload)
         elif action == "playing":
             if hasattr(self, "execute_play_button"):
                 self.execute_play_button.configure(state="disabled" if payload else "normal")
@@ -2503,6 +2634,33 @@ class MacroApp(ctk.CTk):
     def handle_playback_finished(self, payload):
         if self.active_screen != "farm" or not isinstance(payload, dict):
             return
+        elapsed = 0
+        if self.farm_timer_running:
+            elapsed = int(time.perf_counter() - self.farm_timer_started_at)
+        message = str(payload.get("message") or "")
+        if message.lower().startswith("erro"):
+            if self.telegram_config.notify_errors:
+                self.notify_telegram(
+                    self.telegram_message(
+                        self.t("telegram.farm_error"),
+                        f"{self.t('telegram.error')}: {message}",
+                    )
+                )
+        elif payload.get("completed"):
+            if self.telegram_config.notify_farm_finished:
+                self.notify_telegram(
+                    self.telegram_message(
+                        self.t("telegram.farm_finished"),
+                        f"{self.t('telegram.total_time')}: {self.format_elapsed_seconds(elapsed)}",
+                    )
+                )
+        elif self.telegram_config.notify_farm_stopped:
+            self.notify_telegram(
+                self.telegram_message(
+                    self.t("telegram.farm_stopped"),
+                    f"{self.t('telegram.total_time')}: {self.format_elapsed_seconds(elapsed)}",
+                )
+            )
         shutdown_enabled = hasattr(self, "farm_shutdown_var") and self.farm_shutdown_var.get()
         if not payload.get("completed") or not shutdown_enabled:
             return
@@ -2570,6 +2728,14 @@ class MacroApp(ctk.CTk):
             self.farm_current_var.set(name)
             self.farm_next_var.set(name)
             self.highlight_running_farm_card(name)
+            if self.telegram_config.notify_macro_started and name != self.last_notified_farm_macro:
+                self.last_notified_farm_macro = name
+                self.notify_telegram(
+                    self.telegram_message(
+                        self.t("telegram.macro_started"),
+                        f"{self.t('telegram.macro')}: {name}",
+                    )
+                )
             current = payload.get("farm_repeat_current")
             total = payload.get("farm_repeat_total")
             if current is not None and total is not None:
@@ -3515,7 +3681,10 @@ class MacroApp(ctk.CTk):
         except ValueError:
             raise ValueError(self.t("farm.invalid_repeats")) from None
         if item.get("maestria"):
-            return repeats * 3
+            mastery_repeats = repeats * 3
+            if repeats > 9:
+                mastery_repeats += 3
+            return mastery_repeats
         return repeats
 
     def toggle_farm_ignore_item(self, item):
@@ -3611,8 +3780,16 @@ class MacroApp(ctk.CTk):
             self.log_farm(self.t("farm.empty"))
             return
         self.reset_farm_card_highlights()
+        self.last_notified_farm_macro = None
         self.farm_status_var.set(self.t("farm.running"))
         self.farm_next_var.set(expanded_items[0].get("display_name") or expanded_items[0].get("name", "-"))
+        if self.telegram_config.notify_farm_started:
+            self.notify_telegram(
+                self.telegram_message(
+                    self.t("telegram.farm_started"),
+                    f"{self.t('telegram.total_executions')}: {len(expanded_items)}",
+                )
+            )
         self.engine.play_playlist(expanded_items, 1)
 
     def build_farm_execution_items(self, interval_ms):
